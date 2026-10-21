@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
+  booleanArgumentValue,
+  booleanChecked,
   cleanArguments,
   dateArgumentDay,
   dateArgumentValue,
@@ -195,6 +197,16 @@ describe('parseArgumentSchema — item-list shape', () => {
     expect(isActive.default).toBe(true);
     expect(onlyOutOfStock.invert).toBe(false);
     expect(onlyOutOfStock.default).toBe(false);
+  });
+
+  it('ticking an inverted nullable boolean clears the filter instead of storing false', () => {
+    const isActive = byKey(fields, 'isActive');
+    if (isActive.kind !== 'boolean') throw new Error('expected boolean field');
+    expect(isActive.nullable).toBe(true);
+    expect(booleanChecked(isActive, true)).toBe(false);
+    expect(booleanChecked(isActive, null)).toBe(true);
+    expect(booleanArgumentValue(isActive, true)).toBe(null);
+    expect(booleanArgumentValue(isActive, false)).toBe(true);
   });
 
   it('builds enum options from `show` value/label pairs', () => {
