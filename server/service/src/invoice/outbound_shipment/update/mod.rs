@@ -76,6 +76,9 @@ pub enum UpdateOutboundShipmentError {
     },
     // Error applies to unallocated lines with above zero quantity
     CanOnlyChangeToAllocatedWhenNoUnallocatedLines(Vec<InvoiceLine>),
+    /// Preference "prevent issuing expired stock" is on and these lines (ids) issue stock
+    /// that is expired (or expires within the threshold)
+    CannotIssueExpiredStock(Vec<String>),
     CannotHaveEstimatedDeliveryDateBeforeShippedDate,
     CantBackDate(String),
     ExceedsMaximumBackdatingDays,
@@ -331,6 +334,17 @@ mod test {
                 value: format!(
                     r#"{{"shipmentsEnabled":true,"inventoryAdjustmentsEnabled":false,"maxDays":{max_days}}}"#
                 ),
+                store_id: None,
+            })
+            .unwrap();
+    }
+
+    fn set_prevent_expired_stock(connection: &StorageConnection, value: bool) {
+        PreferenceRowRepository::new(connection)
+            .upsert_one(&PreferenceRow {
+                id: "expired_stock_prevent_issue_global".to_string(),
+                key: "expired_stock_prevent_issue".to_string(),
+                value: value.to_string(),
                 store_id: None,
             })
             .unwrap();
@@ -1959,5 +1973,100 @@ mod test {
             .update_outbound_shipment(&context, campaign(None))
             .unwrap();
         assert_eq!(saved_campaign(), None);
+    }
+
+    // The expired stock preference was only enforced by the UI. A line added while the stock
+    // had no expiry date can have that stock expire before the shipment is confirmed.
+    #[actix_rt::test]
+    async fn update_outbound_shipment_prevent_issuing_expired_stock() {
+        use chrono::{Duration, Utc};
+
+        fn new_outbound() -> InvoiceRow {
+            InvoiceRow {
+                id: "expired_stock_outbound".to_string(),
+                name_id: mock_name_a().id,
+                store_id: mock_store_a().id,
+                r#type: InvoiceType::OutboundShipment,
+                status: InvoiceStatus::New,
+                ..Default::default()
+            }
+        }
+
+        fn stock_line() -> StockLineRow {
+            StockLineRow {
+                id: "expired_stock_stock_line".to_string(),
+                store_id: mock_store_a().id,
+                available_number_of_packs: 8.0,
+                total_number_of_packs: 10.0,
+                pack_size: 1.0,
+                item_id: mock_item_a().id,
+                // Expiry set after the line was added to the shipment
+                expiry_date: Some(Utc::now().date_naive() - Duration::days(1)),
+                ..Default::default()
+            }
+        }
+
+        fn invoice_line() -> InvoiceLineRow {
+            InvoiceLineRow {
+                id: "expired_stock_invoice_line".to_string(),
+                invoice_id: new_outbound().id,
+                stock_line_id: Some(stock_line().id),
+                number_of_packs: 2.0,
+                item_id: mock_item_a().id,
+                r#type: InvoiceLineType::StockOut,
+                // No expiry on the line, as it was added before the stock had one
+                expiry_date: None,
+                ..Default::default()
+            }
+        }
+
+        let (_, connection, connection_manager, _) = setup_all_with_data(
+            "update_outbound_shipment_prevent_issuing_expired_stock",
+            MockDataInserts::all(),
+            MockData {
+                invoices: vec![new_outbound()],
+                stock_lines: vec![stock_line()],
+                invoice_lines: vec![invoice_line()],
+                ..Default::default()
+            },
+        )
+        .await;
+
+        let service_provider = ServiceProvider::new(connection_manager);
+        let context = service_provider
+            .context(mock_store_a().id, "".to_string())
+            .unwrap();
+        let service = service_provider.invoice_service;
+
+        let allocate = || UpdateOutboundShipment {
+            id: new_outbound().id,
+            status: Some(UpdateOutboundShipmentStatus::Allocated),
+            ..Default::default()
+        };
+
+        // Preference off: expired stock can still be issued
+        set_prevent_expired_stock(&connection, false);
+
+        // Preference on: can't confirm (nothing changes)
+        set_prevent_expired_stock(&connection, true);
+        assert_eq!(
+            service.update_outbound_shipment(&context, allocate()),
+            Err(ServiceError::CannotIssueExpiredStock(vec![
+                invoice_line().id
+            ]))
+        );
+        assert_eq!(
+            InvoiceRowRepository::new(&connection)
+                .find_one_by_id(&new_outbound().id)
+                .unwrap()
+                .unwrap()
+                .status,
+            InvoiceStatus::New
+        );
+
+        // Turning the preference off lets it through
+        set_prevent_expired_stock(&connection, false);
+        let result = service.update_outbound_shipment(&context, allocate());
+        assert!(result.is_ok(), "Not Ok(_) {:#?}", result);
     }
 }

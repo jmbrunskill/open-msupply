@@ -8,7 +8,10 @@ use crate::invoice::{
     check_invoice_type, check_status_change, check_store,
     custom_fields::check_invoice_custom_fields_patch,
 };
-use crate::preference::{Preference, preferences::Backdating};
+use crate::preference::{
+    Preference,
+    preferences::{Backdating, ExpiredStockIssueThreshold, ExpiredStockPreventIssue},
+};
 use crate::validate::{check_other_party_store_is_disabled, get_other_party};
 use chrono::{Duration, Utc};
 use repository::{
@@ -115,6 +118,7 @@ pub fn validate(
             },
         )?;
         check_can_change_status_to_allocated(connection, &invoice, patch.full_status())?;
+        check_no_expired_stock_issued(connection, &invoice, patch.full_status())?;
         if check_expected_delivery_date_before_shipped_date(patch.full_status(), &invoice) {
             return Err(CannotHaveEstimatedDeliveryDateBeforeShippedDate);
         }
@@ -157,6 +161,53 @@ fn check_can_change_status_to_allocated(
     }
 
     Ok(())
+}
+
+// If the "prevent issuing expired stock" preference is on, confirming (leaving New) is rejected
+// when a line issues stock that is expired, or expires within the issue threshold. The UI
+// checks this when stock is picked, but stock expiry can be set after the line was added.
+fn check_no_expired_stock_issued(
+    connection: &StorageConnection,
+    invoice_row: &InvoiceRow,
+    status_option: Option<InvoiceStatus>,
+) -> Result<(), UpdateOutboundShipmentError> {
+    if invoice_row.status != InvoiceStatus::New
+        || status_option.is_none_or(|status| status == InvoiceStatus::New)
+    {
+        return Ok(());
+    }
+    if !ExpiredStockPreventIssue.load(connection, None)? {
+        return Ok(());
+    }
+    let threshold_days = ExpiredStockIssueThreshold.load(connection, None)?;
+    let latest_allowed_expiry = Utc::now().date_naive() + Duration::days(threshold_days as i64);
+
+    let lines = InvoiceLineRepository::new(connection).query_by_filter(
+        InvoiceLineFilter::new()
+            .invoice_id(EqualFilter::equal_to(invoice_row.id.to_string()))
+            .r#type(InvoiceLineType::StockOut.equal_to()),
+    )?;
+
+    let expired_line_ids: Vec<String> = lines
+        .into_iter()
+        .filter(|line| {
+            line.invoice_line_row.number_of_packs > 0.0
+                && line
+                    .stock_line_option
+                    .as_ref()
+                    .and_then(|stock_line| stock_line.expiry_date)
+                    .is_some_and(|expiry_date| expiry_date <= latest_allowed_expiry)
+        })
+        .map(|line| line.invoice_line_row.id)
+        .collect();
+
+    if expired_line_ids.is_empty() {
+        Ok(())
+    } else {
+        Err(UpdateOutboundShipmentError::CannotIssueExpiredStock(
+            expired_line_ids,
+        ))
+    }
 }
 
 fn check_expected_delivery_date_before_shipped_date(

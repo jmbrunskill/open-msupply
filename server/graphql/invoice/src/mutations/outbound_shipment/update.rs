@@ -210,6 +210,7 @@ fn map_error(error: ServiceError) -> Result<UpdateErrorInterface> {
         ServiceError::OtherPartyDoesNotExist => BadUserInput(formatted_error),
         ServiceError::ShippingMethodDoesNotExist => BadUserInput(formatted_error),
         ServiceError::CampaignDoesNotExist => BadUserInput(formatted_error),
+        ServiceError::CannotIssueExpiredStock(_) => BadUserInput(formatted_error),
         ServiceError::CantBackDate(_) => BadUserInput(formatted_error),
         ServiceError::ExceedsMaximumBackdatingDays => BadUserInput(formatted_error),
         ServiceError::UnknownPropertyKey(_) | ServiceError::InvalidPropertyValue { .. } => {
