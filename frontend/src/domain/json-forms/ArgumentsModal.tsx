@@ -60,6 +60,8 @@ import {
   seedDefaults,
   type ParsedField,
   type ReportArgs,
+  booleanArgumentValue,
+  booleanChecked,
 } from './schema';
 
 /**
@@ -321,17 +323,15 @@ export const ArgumentsModal = (props: ArgumentsModalProps) => {
   // Display-invert: for an inverted boolean the checkbox shows the negation of
   // the stored raw value (schema key `isActive` shown as "Include inactive"),
   // and writes the negation back — the stored argument stays the raw schema
-  // key.
+  // key. Ticking "Include inactive" must mean "no filter" (null), not
+  // `isActive: false`, which would return only the inactive records.
   const boolChecked = (
     field: Extract<ParsedField, { kind: 'boolean' }>
-  ): boolean => {
-    const raw = values[field.key] === true;
-    return field.invert ? !raw : raw;
-  };
+  ): boolean => booleanChecked(field, values[field.key]);
   const setBool = (
     field: Extract<ParsedField, { kind: 'boolean' }>,
     checked: boolean
-  ): void => setValues(field.key, field.invert ? !checked : checked);
+  ): void => setValues(field.key, booleanArgumentValue(field, checked));
   const selectValue = (key: string): string | undefined => {
     const value = values[key];
     return typeof value === 'string' ? value : undefined;

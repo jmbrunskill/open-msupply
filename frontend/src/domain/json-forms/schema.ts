@@ -827,3 +827,29 @@ export const cleanArguments = (
   }
   return cleaned;
 };
+
+/** The boolean-kind slice of ParsedField the checkbox helpers below read. */
+type BooleanField = Extract<ParsedField, { kind: 'boolean' }>;
+
+/**
+ * Whether a boolean field's checkbox is ticked for its stored raw value. An
+ * inverted nullable field (`isActive` shown as "Include inactive") is ticked
+ * when the stored value is null, i.e. the filter is off.
+ */
+export const booleanChecked = (field: BooleanField, raw: unknown): boolean => {
+  if (!field.invert) return raw === true;
+  return field.nullable ? raw === null : raw !== true;
+};
+
+/**
+ * The raw argument value to store when a boolean field's checkbox is
+ * (un)ticked. Ticking an inverted nullable field clears the filter (null);
+ * storing `false` would instead select only the inactive records.
+ */
+export const booleanArgumentValue = (
+  field: BooleanField,
+  checked: boolean
+): boolean | null => {
+  if (!field.invert) return checked;
+  return field.nullable ? (checked ? null : true) : !checked;
+};
