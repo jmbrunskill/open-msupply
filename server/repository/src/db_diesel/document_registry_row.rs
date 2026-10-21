@@ -1,8 +1,8 @@
 use super::StorageConnection;
 
 use crate::{
-    ChangelogRepository, ChangelogSyncType, RepositoryError, RowActionType, SourceSiteId, Upsert,
-    db_diesel::form_schema_row::form_schema,
+    ChangelogRepository, ChangelogSyncType, Delete, RepositoryError, RowActionType, SourceSiteId,
+    Upsert, db_diesel::form_schema_row::form_schema,
 };
 
 use diesel::prelude::*;
@@ -103,13 +103,11 @@ impl<'a> DocumentRegistryRowRepository<'a> {
             .load(self.connection.lock().connection())?)
     }
 
-    // pub fn delete(&self, id: &str) -> Result<(), RepositoryError> {
-    //     diesel::delete(
-    //         document_registry::table.filter(document_registry::id.eq(id)),
-    //     )
-    //     .execute(self.connection.lock().connection())?;
-    //     Ok(())
-    // }
+    fn _delete(&self, id: &str) -> Result<(), RepositoryError> {
+        diesel::delete(document_registry::table.filter(document_registry::id.eq(id)))
+            .execute(self.connection.lock().connection())?;
+        Ok(())
+    }
 }
 
 impl Upsert for DocumentRegistryRow {
@@ -139,6 +137,40 @@ impl Upsert for DocumentRegistryRow {
         assert_eq!(
             DocumentRegistryRowRepository::new(con).find_one_by_id(&self.id),
             Ok(Some(self.clone()))
+        )
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct DocumentRegistryRowDelete(pub String);
+impl Delete for DocumentRegistryRowDelete {
+    fn delete_sync(
+        &self,
+        con: &StorageConnection,
+        sync_type: ChangelogSyncType,
+    ) -> Result<(), RepositoryError> {
+        let changelog = match sync_type {
+            ChangelogSyncType::SyncTypeV5V6 { source_site_id } => {
+                DocumentRegistryRow::generate_changelog(
+                    self.0.clone(),
+                    con,
+                    RowActionType::Delete,
+                    SourceSiteId::SourceSiteId(source_site_id),
+                )?
+            }
+            ChangelogSyncType::SyncTypeV7 { changelog_row } => changelog_row,
+        };
+
+        DocumentRegistryRowRepository::new(con)._delete(&self.0)?;
+        ChangelogRepository::new(con).insert(&changelog)?;
+        Ok(())
+    }
+
+    // Test only
+    fn assert_deleted(&self, con: &StorageConnection) {
+        assert_eq!(
+            DocumentRegistryRowRepository::new(con).find_one_by_id(&self.0),
+            Ok(None)
         )
     }
 }
