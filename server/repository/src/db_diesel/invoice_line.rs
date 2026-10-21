@@ -609,4 +609,62 @@ mod test {
             vec!["sort_line_unordered", "sort_line_b", "sort_line_a"]
         );
     }
+
+    /// With a currency rate of 1 the foreign currency total must equal the
+    /// base total, including when only some lines carry tax (a service charge
+    /// added to an untaxed stock line).
+    #[actix_rt::test]
+    async fn test_invoice_stats_foreign_currency_total_after_tax() {
+        let invoice = InvoiceRow {
+            id: "fc_invoice".to_string(),
+            name_id: mock_name_a().id,
+            store_id: mock_store_a().id,
+            r#type: InvoiceType::OutboundShipment,
+            ..Default::default()
+        };
+        let stock_line = InvoiceLineRow {
+            id: "fc_stock_line".to_string(),
+            invoice_id: invoice.id.clone(),
+            item_id: mock_item_a().id,
+            r#type: InvoiceLineType::StockOut,
+            total_before_tax: 100.0,
+            total_after_tax: 100.0,
+            foreign_currency_price_before_tax: Some(100.0),
+            ..Default::default()
+        };
+        let service_line = InvoiceLineRow {
+            id: "fc_service_line".to_string(),
+            invoice_id: invoice.id.clone(),
+            item_id: mock_item_b().id,
+            r#type: InvoiceLineType::Service,
+            total_before_tax: 50.0,
+            total_after_tax: 55.0,
+            tax_percentage: Some(10.0),
+            foreign_currency_price_before_tax: Some(50.0),
+            ..Default::default()
+        };
+
+        let (_, connection, _, _) = setup_all_with_data(
+            "test_invoice_stats_foreign_currency_total_after_tax",
+            MockDataInserts::none().names().stores().units().items(),
+            MockData {
+                invoices: vec![invoice.clone()],
+                invoice_lines: vec![stock_line, service_line],
+                ..Default::default()
+            },
+        )
+        .await;
+
+        let stats = InvoiceLineRepository::new(&connection)
+            .stats(&[invoice.id.clone()])
+            .unwrap()
+            .pop()
+            .unwrap();
+        assert_eq!(stats.total_after_tax, 155.0);
+        let fc_total = stats.foreign_currency_total_after_tax.unwrap();
+        assert!(
+            (fc_total - 155.0).abs() < 1e-6,
+            "foreign currency total {fc_total} != 155"
+        );
+    }
 }
