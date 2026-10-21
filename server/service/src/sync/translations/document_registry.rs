@@ -2,7 +2,10 @@ use crate::sync::translations::{
     form_schema::FormSchemaTranslation, master_list::MasterListTranslation,
 };
 
-use repository::{DocumentRegistryCategory, DocumentRegistryRow, StorageConnection, SyncBufferRow};
+use repository::{
+    DocumentRegistryCategory, DocumentRegistryRow, DocumentRegistryRowDelete, StorageConnection,
+    SyncBufferRow,
+};
 use serde::Deserialize;
 use serde_json::Value;
 use util::sync_serde::empty_str_as_option_string;
@@ -107,5 +110,73 @@ impl SyncTranslation for DocumentRegistryTranslation {
         };
 
         Ok(PullTranslateResult::upsert(result))
+    }
+
+    fn try_translate_from_delete_sync_record(
+        &self,
+        _: &StorageConnection,
+        sync_record: &SyncBufferRow,
+    ) -> Result<PullTranslateResult, anyhow::Error> {
+        Ok(PullTranslateResult::delete(DocumentRegistryRowDelete(
+            sync_record.record_id.clone(),
+        )))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use repository::{
+        DocumentRegistryRowRepository, SyncAction,
+        mock::{MockDataInserts, document_registry_b},
+        sync_buffer::SyncRecordData,
+        test_db::setup_all,
+    };
+
+    use crate::sync::translations::IntegrationOperation;
+
+    /// A delete of a document registry entry in the central server must remove
+    /// it here too, otherwise deleted config lingers (and re-uploaded config
+    /// ends up duplicated).
+    #[actix_rt::test]
+    async fn test_document_registry_pull_delete() {
+        let translator = DocumentRegistryTranslation {};
+        let (_, connection, _, _) =
+            setup_all("test_document_registry_pull_delete", MockDataInserts::all()).await;
+
+        let registry = document_registry_b();
+        let repo = DocumentRegistryRowRepository::new(&connection);
+        assert!(repo.find_one_by_id(&registry.id).unwrap().is_some());
+
+        let sync_record = SyncBufferRow {
+            table_name: translator.table_name().to_string(),
+            record_id: registry.id.clone(),
+            data: SyncRecordData(serde_json::json!({})),
+            action: SyncAction::Delete,
+            ..Default::default()
+        };
+        assert!(translator.should_translate_from_sync_record(&sync_record));
+
+        let PullTranslateResult::IntegrationOperations(operations) = translator
+            .try_translate_from_delete_sync_record(&connection, &sync_record)
+            .unwrap()
+        else {
+            panic!("delete record was not translated");
+        };
+        for operation in operations {
+            let IntegrationOperation::Delete(delete) = operation else {
+                panic!("expected a delete operation");
+            };
+            delete
+                .delete_sync(
+                    &connection,
+                    repository::ChangelogSyncType::SyncTypeV5V6 {
+                        source_site_id: None,
+                    },
+                )
+                .unwrap();
+        }
+
+        assert_eq!(repo.find_one_by_id(&registry.id).unwrap(), None);
     }
 }
