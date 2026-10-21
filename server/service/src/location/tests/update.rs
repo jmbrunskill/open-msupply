@@ -1,6 +1,7 @@
 #[cfg(test)]
 mod query {
     use repository::EqualFilter;
+    use repository::LocationRowRepository;
     use repository::mock::mock_store_a;
     use repository::{
         location::{LocationFilter, LocationRepository},
@@ -145,6 +146,61 @@ mod query {
                 )
                 .unwrap()[0],
             location
+        );
+    }
+
+    #[actix_rt::test]
+    async fn location_service_update_duplicate_code_unchanged() {
+        let (_, _, connection_manager, _) = setup_all(
+            "location_service_update_duplicate_code_unchanged",
+            MockDataInserts::all(),
+        )
+        .await;
+
+        let connection = connection_manager.connection().unwrap();
+        let location_repository = LocationRepository::new(&connection);
+        let service_provider = ServiceProvider::new(connection_manager);
+        let context = service_provider
+            .context(mock_store_a().id, "".to_string())
+            .unwrap();
+        let service = service_provider.location_service;
+
+        let locations_in_store = location_repository
+            .query_by_filter(
+                LocationFilter::new().store_id(EqualFilter::equal_to("store_a".to_string())),
+            )
+            .unwrap();
+
+        // Legacy duplicate (e.g. created via sync, which skips validation)
+        let mut duplicate = locations_in_store[1].location_row.clone();
+        duplicate.code = locations_in_store[0].location_row.code.clone();
+        LocationRowRepository::new(&connection)
+            .upsert_one(&duplicate)
+            .unwrap();
+
+        // Editing other fields with the unchanged code must still work
+        let result = service.update_location(
+            &context,
+            UpdateLocation {
+                id: duplicate.id.clone(),
+                code: Some(duplicate.code.clone()),
+                on_hold: Some(!duplicate.on_hold),
+                ..Default::default()
+            },
+        );
+        assert!(result.is_ok(), "{result:?}");
+
+        // Changing the code to another existing code is still rejected
+        assert_eq!(
+            service.update_location(
+                &context,
+                UpdateLocation {
+                    id: duplicate.id.clone(),
+                    code: Some(locations_in_store[2].location_row.code.clone()),
+                    ..Default::default()
+                },
+            ),
+            Err(UpdateLocationError::CodeAlreadyExists)
         );
     }
 }

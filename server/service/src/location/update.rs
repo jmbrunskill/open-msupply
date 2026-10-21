@@ -57,7 +57,15 @@ pub fn validate(
         return Err(UpdateLocationError::LocationDoesNotBelongToCurrentStore);
     }
 
-    if !check_location_code_is_unique(&input.id, input.code.clone(), store_id, connection)? {
+    // Only check uniqueness when the code is changing, so legacy duplicates
+    // (e.g. created via sync) can still have their other fields edited
+    let code_changed = input
+        .code
+        .as_ref()
+        .is_some_and(|code| *code != location_row.code);
+    if code_changed
+        && !check_location_code_is_unique(&input.id, input.code.clone(), store_id, connection)?
+    {
         return Err(UpdateLocationError::CodeAlreadyExists);
     }
 
