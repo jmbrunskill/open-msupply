@@ -15,7 +15,7 @@ use graphql_core::loader::{
     AllowedCustomFieldKeysByScopeLoader, CampaignByIdLoader, CurrencyByIdLoader, DiagnosisLoader,
     InvoiceByIdLoader, InvoiceLineByInvoiceIdLoader, NameByIdLoaderInput, NameInsuranceJoinLoader,
     PatientLoader, ProgramByIdLoader, PurchaseOrderByIdLoader, ShippingMethodByIdLoader,
-    SyncFileReferenceLoader, UserLoader,
+    StoreByIdLoader, SyncFileReferenceLoader, UserLoader,
 };
 use graphql_core::{
     ContextExt,
@@ -23,7 +23,7 @@ use graphql_core::{
     standard_graphql_error::StandardGraphqlError,
 };
 use repository::{
-    ClinicianRow, InvoiceRow, InvoiceType, Name, NameRow, NameRowType, PricingRow, Store, StoreRow,
+    ClinicianRow, InvoiceRow, InvoiceType, Name, NameRow, NameRowType, PricingRow, StoreRow,
 };
 
 use repository::Invoice;
@@ -485,11 +485,15 @@ impl InvoiceNode {
         Ok(result.map(CampaignNode::from_domain))
     }
 
-    pub async fn store(&self) -> StoreNode {
-        StoreNode::from_domain(Store {
-            store_row: self.store_row().clone(),
-            name_row: self.name_row().clone(),
-        })
+    pub async fn store(&self, ctx: &Context<'_>) -> Result<StoreNode> {
+        // `self.name_row()` is the other party, so the store's own name must be
+        // loaded rather than combined with the invoice's store row
+        let loader = ctx.get_loader::<DataLoader<StoreByIdLoader>>();
+        let store_id = self.store_row().id.clone();
+        let store = loader.load_one(store_id.clone()).await?.ok_or_else(|| {
+            StandardGraphqlError::InternalError(format!("Cannot find store {store_id}"))
+        })?;
+        Ok(StoreNode::from_domain(store))
     }
 
     pub async fn name_insurance_join_id(&self) -> &Option<String> {
