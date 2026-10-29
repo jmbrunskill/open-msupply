@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Grid,
   BasicTextInput,
@@ -66,6 +66,19 @@ export const PrescriptionLineEditForm = ({
     setNote(note);
     setAbbreviation('');
   };
+
+  // Pre-fill directions with the item's first default direction (in the order
+  // shown in the dropdown) for a new line. The dispenser can still change it.
+  const itemId = item?.id;
+  useEffect(() => {
+    if (!isNew || disabled || note || !item) return;
+    const [first] = [...item.itemDirections].sort(
+      (a, b) => a.priority - b.priority
+    );
+    if (first?.directions) saveDefaultDirection(first.directions);
+    // Only when the item changes, so clearing the field afterwards sticks
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [itemId, isNew, disabled]);
 
   const abbreviationRef = React.useRef<HTMLInputElement>(null);
 
