@@ -136,6 +136,28 @@ impl<'a> ItemLedgerRepository<'a> {
 
         Ok(result)
     }
+
+    /// Stock on hand (in units) of an item in a store at the given datetime (inclusive).
+    ///
+    /// Sums the movements up to `datetime` instead of picking a single `running_balance` row,
+    /// so ledger rows sharing an identical datetime (e.g. several stock lines on one invoice)
+    /// are all counted and the result is deterministic.
+    pub fn balance_on_date(
+        &self,
+        store_id: &str,
+        item_id: &str,
+        datetime: NaiveDateTime,
+    ) -> Result<f64, RepositoryError> {
+        let balance = item_ledger::table
+            .filter(item_ledger::datetime.is_not_null())
+            .filter(item_ledger::store_id.eq(store_id))
+            .filter(item_ledger::item_id.eq(item_id))
+            .filter(item_ledger::datetime.le(datetime))
+            .select(diesel::dsl::sum(item_ledger::movement_in_units))
+            .first::<Option<f64>>(self.connection.lock().connection())?;
+
+        Ok(balance.unwrap_or(0.0))
+    }
 }
 
 type ItemLedgerQuery = item_ledger::BoxedQuery<'static, DBType>;
@@ -260,5 +282,45 @@ mod tests {
         assert_eq!(result[2].running_balance, 0.0); // picked outbound second line
         assert_eq!(result[1].running_balance, 50.0); // verified inventory addition
         assert_eq!(result[0].running_balance, 100.0); // verified inventory addition (line b)
+    }
+
+    #[actix_rt::test]
+    async fn item_ledger_balance_on_date() {
+        let (items, stock_lines, invoices, invoice_lines) = mock_ledger_data();
+        let (_, storage_connection, _, _) = test_db::setup_all_with_data(
+            "item_ledger_balance_on_date",
+            MockDataInserts::all(),
+            MockData {
+                items,
+                stock_lines,
+                invoices,
+                invoice_lines,
+                ..Default::default()
+            },
+        )
+        .await;
+
+        let repo = ItemLedgerRepository::new(&storage_connection);
+        let all = repo
+            .query(
+                Pagination::all(),
+                Some(
+                    ItemLedgerFilter::new()
+                        .item_id(EqualFilter::equal_to("ledger_test_item".to_string())),
+                ),
+            )
+            .unwrap();
+        let store_id = all[0].store_id.clone();
+        let balance = |day| {
+            repo.balance_on_date(&store_id, "ledger_test_item", get_test_ledger_datetime(day))
+                .unwrap()
+        };
+
+        assert_eq!(balance(1), 0.0); // before any movement
+        assert_eq!(balance(2), 50.0);
+        assert_eq!(balance(3), 100.0);
+        // Two outbound lines share this datetime: final balance, not either intermediate row
+        assert_eq!(balance(4), 0.0);
+        assert_eq!(balance(5), 50.0);
     }
 }
