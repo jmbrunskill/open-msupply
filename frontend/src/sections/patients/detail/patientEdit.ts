@@ -118,7 +118,8 @@ const orNull = (value: string): string | null => (value.trim() ? value : null);
 // otherwise).
 const toFullInput = (id: string, draft: PatientDraft) => ({
   id,
-  code: draft.code,
+  // Trimmed so ' P-1 ' cannot be stored as a second, look-alike code of 'P-1'.
+  code: draft.code.trim(),
   code2: orNull(draft.code2),
   firstName: orNull(draft.firstName),
   lastName: orNull(draft.lastName),
