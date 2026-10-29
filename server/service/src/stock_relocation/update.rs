@@ -1,6 +1,6 @@
 use chrono::Utc;
 use repository::{
-    RepositoryError, StockLine, StockLineRow, StockRelocationLineRow,
+    ActivityLogType, RepositoryError, StockLine, StockLineRow, StockRelocationLineRow,
     StockRelocationLineRowRepository, StockRelocationRow, StockRelocationRowRepository,
     StockRelocationStatus, StorageConnection, TransactionError,
 };
@@ -8,6 +8,7 @@ use util::EPSILON;
 
 use crate::{
     NullableUpdate,
+    activity_log::activity_log_entry,
     repack::{InsertRepack, InsertRepackError, insert_repack_from_stock_line},
     service_provider::ServiceContext,
     stock_line::update::{UpdateStockLine, UpdateStockLineError, update_stock_line},
@@ -56,6 +57,7 @@ pub fn update_stock_relocation(
                 return Err(StockRelocationFinalised);
             }
 
+            let mut log_type = None;
             if let Some(status) = input.status {
                 if status.index() < row.status.index() {
                     return Err(CannotReverseStatus);
@@ -67,6 +69,17 @@ pub fn update_stock_relocation(
                     finalise(ctx, connection, store_id, &row)?;
                     row.finalised_datetime = Some(Utc::now().naive_utc());
                 }
+                if status != row.status {
+                    log_type = match status {
+                        StockRelocationStatus::New => None,
+                        StockRelocationStatus::Confirmed => {
+                            Some(ActivityLogType::StockRelocationConfirmed)
+                        }
+                        StockRelocationStatus::Finalised => {
+                            Some(ActivityLogType::StockRelocationFinalised)
+                        }
+                    };
+                }
                 row.status = status;
             }
             if let Some(comment) = input.comment {
@@ -74,6 +87,11 @@ pub fn update_stock_relocation(
             }
 
             StockRelocationRowRepository::new(connection).upsert_one(&row)?;
+
+            if let Some(log_type) = log_type {
+                activity_log_entry(ctx, log_type, Some(row.id.clone()), None, None)?;
+            }
+
             Ok(row)
         })
         .map_err(|error: TransactionError<UpdateStockRelocationError>| error.to_inner_error())
@@ -256,6 +274,64 @@ mod test {
             comment: None,
             status: Some(status),
         }
+    }
+
+    #[actix_rt::test]
+    async fn stock_movement_activity_log() {
+        let (service_provider, ctx) = setup("stock_movement_activity_log").await;
+        StockLineRowRepository::new(&ctx.connection)
+            .upsert_one(&stock_line("log_sl"))
+            .unwrap();
+        let service = &service_provider.stock_relocation_service;
+
+        let log_types = |id: &str| -> Vec<ActivityLogType> {
+            let mut logs = ActivityLogRepository::new(&ctx.connection)
+                .query_by_filter(
+                    ActivityLogFilter::new().record_id(EqualFilter::equal_to(id.to_string())),
+                )
+                .unwrap();
+            logs.sort_by_key(|l| l.activity_log_row.datetime);
+            logs.into_iter()
+                .map(|l| l.activity_log_row.r#type)
+                .collect()
+        };
+
+        let id = new_movement(&service_provider, &ctx).await;
+        assert_eq!(
+            log_types(&id),
+            vec![ActivityLogType::StockRelocationCreated]
+        );
+
+        add_line(&ctx, &id, "log_sl", 4.0);
+        service
+            .update_stock_relocation(
+                &ctx,
+                "store_a",
+                set_status(&id, StockRelocationStatus::Confirmed),
+            )
+            .unwrap();
+        service
+            .update_stock_relocation(
+                &ctx,
+                "store_a",
+                set_status(&id, StockRelocationStatus::Finalised),
+            )
+            .unwrap();
+        let types = log_types(&id);
+        assert!(types.contains(&ActivityLogType::StockRelocationConfirmed));
+        assert!(types.contains(&ActivityLogType::StockRelocationFinalised));
+
+        let deleted_id = new_movement(&service_provider, &ctx).await;
+        service
+            .delete_stock_relocation(
+                &ctx,
+                "store_a",
+                crate::stock_relocation::delete::DeleteStockRelocation {
+                    id: deleted_id.clone(),
+                },
+            )
+            .unwrap();
+        assert!(log_types(&deleted_id).contains(&ActivityLogType::StockRelocationDeleted));
     }
 
     #[actix_rt::test]

@@ -1,9 +1,10 @@
 use chrono::Utc;
 use repository::{
-    NumberRowType, RepositoryError, StockRelocationRow, StockRelocationRowRepository,
-    StockRelocationStatus, TransactionError,
+    ActivityLogType, NumberRowType, RepositoryError, StockRelocationRow,
+    StockRelocationRowRepository, StockRelocationStatus, TransactionError,
 };
 
+use crate::activity_log::activity_log_entry;
 use crate::number::next_number;
 use crate::service_provider::ServiceContext;
 
@@ -45,6 +46,14 @@ pub fn insert_stock_relocation(
                 comment: input.comment,
             };
             repo.upsert_one(&row)?;
+
+            activity_log_entry(
+                ctx,
+                ActivityLogType::StockRelocationCreated,
+                Some(row.id.clone()),
+                None,
+                None,
+            )?;
 
             Ok(row)
         })

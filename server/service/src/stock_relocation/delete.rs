@@ -1,9 +1,9 @@
 use repository::{
-    RepositoryError, StockRelocationLineRowRepository, StockRelocationRowRepository,
-    StockRelocationStatus, StorageConnection, TransactionError,
+    ActivityLogType, RepositoryError, StockRelocationLineRowRepository,
+    StockRelocationRowRepository, StockRelocationStatus, StorageConnection, TransactionError,
 };
 
-use crate::service_provider::ServiceContext;
+use crate::{activity_log::activity_log_entry, service_provider::ServiceContext};
 
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct DeleteStockRelocation {
@@ -24,7 +24,7 @@ pub fn delete_stock_relocation(
     input: DeleteStockRelocation,
 ) -> Result<String, DeleteStockRelocationError> {
     ctx.connection
-        .transaction_sync(|connection| delete_one(connection, store_id, &input.id))
+        .transaction_sync(|connection| delete_one(ctx, connection, store_id, &input.id))
         .map_err(|error: TransactionError<DeleteStockRelocationError>| error.to_inner_error())
 }
 
@@ -36,13 +36,14 @@ pub fn delete_stock_relocations(
     ctx.connection
         .transaction_sync(|connection| {
             ids.iter()
-                .map(|id| delete_one(connection, store_id, id))
+                .map(|id| delete_one(ctx, connection, store_id, id))
                 .collect::<Result<Vec<_>, _>>()
         })
         .map_err(|error: TransactionError<DeleteStockRelocationError>| error.to_inner_error())
 }
 
 fn delete_one(
+    ctx: &ServiceContext,
     connection: &StorageConnection,
     store_id: &str,
     id: &str,
@@ -55,6 +56,13 @@ fn delete_one(
     }
 
     StockRelocationRowRepository::new(connection).delete(id)?;
+    activity_log_entry(
+        ctx,
+        ActivityLogType::StockRelocationDeleted,
+        Some(id.to_string()),
+        None,
+        None,
+    )?;
     Ok(id.to_string())
 }
 
