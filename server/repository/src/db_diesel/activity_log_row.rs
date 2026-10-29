@@ -136,6 +136,10 @@ pub enum ActivityLogType {
     BundledItemCreated,
     BundledItemUpdated,
     BundledItemDeleted,
+    StockRelocationCreated,
+    StockRelocationConfirmed,
+    StockRelocationFinalised,
+    StockRelocationDeleted,
 }
 
 #[derive(
