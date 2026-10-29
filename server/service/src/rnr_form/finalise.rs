@@ -202,8 +202,15 @@ fn generate(
     // Loop through the rnr lines and create requisition lines
     let rnr_form_closing_datetime = period_row.end_date.and_hms_opt(0, 0, 0);
 
+    // Lines with nothing requested are left out of the internal order
     let rnr_form_line_and_requisition_lines = rnr_form_lines
         .into_iter()
+        .filter(|line| {
+            let row = &line.rnr_form_line_row;
+            row.entered_requested_quantity
+                .unwrap_or(row.calculated_requested_quantity)
+                > 0.0
+        })
         .map(
             |RnRFormLine {
                  rnr_form_line_row,
