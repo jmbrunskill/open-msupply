@@ -72,6 +72,7 @@ allow_tables_to_appear_in_same_query!(store, item_link);
     TS,
 )]
 #[diesel(table_name = store)]
+#[diesel(treat_none_as_null = true)]
 pub struct StoreRow {
     pub id: String,
     pub code: String,

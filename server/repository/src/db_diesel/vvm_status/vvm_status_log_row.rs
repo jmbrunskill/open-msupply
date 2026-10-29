@@ -33,6 +33,7 @@ joinable!(vvm_status_log -> store (store_id));
     Clone, Insertable, Queryable, Debug, PartialEq, AsChangeset, Eq, Serialize, Deserialize,
 )]
 #[diesel(table_name = vvm_status_log)]
+#[diesel(treat_none_as_null = true)]
 pub struct VVMStatusLogRow {
     pub id: String,
     pub status_id: String,

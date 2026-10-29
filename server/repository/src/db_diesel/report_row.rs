@@ -62,6 +62,7 @@ allow_tables_to_appear_in_same_query!(report, form_schema);
     Clone, Insertable, Queryable, Debug, PartialEq, Eq, AsChangeset, Serialize, Deserialize, Default,
 )]
 #[diesel(table_name = report)]
+#[diesel(treat_none_as_null = true)]
 pub struct ReportRow {
     pub id: String,
     pub name: String,

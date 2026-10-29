@@ -58,6 +58,7 @@ allow_tables_to_appear_in_same_query!(name_insurance_join, name);
     Clone, Insertable, Queryable, Debug, PartialEq, AsChangeset, Default, Serialize, Deserialize,
 )]
 #[diesel(table_name = name_insurance_join)]
+#[diesel(treat_none_as_null = true)]
 pub struct NameInsuranceJoinRow {
     pub id: String,
     pub insurance_provider_id: String,

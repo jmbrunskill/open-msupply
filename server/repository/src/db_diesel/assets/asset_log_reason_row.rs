@@ -26,6 +26,7 @@ table! {
     Clone, Insertable, Queryable, Default, Debug, PartialEq, AsChangeset, Eq, Serialize, Deserialize,
 )]
 #[diesel(table_name = asset_log_reason)]
+#[diesel(treat_none_as_null = true)]
 pub struct AssetLogReasonRow {
     pub id: String,
     pub asset_log_status: AssetLogStatus,

@@ -33,6 +33,7 @@ allow_tables_to_appear_in_same_query!(stock_relocation_line, location);
     Clone, Queryable, Insertable, AsChangeset, Debug, PartialEq, Default, Serialize, Deserialize,
 )]
 #[diesel(table_name = stock_relocation_line)]
+#[diesel(treat_none_as_null = true)]
 pub struct StockRelocationLineRow {
     pub id: String,
     pub stock_relocation_id: String,

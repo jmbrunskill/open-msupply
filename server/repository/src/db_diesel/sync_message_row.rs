@@ -65,6 +65,7 @@ allow_tables_to_appear_in_same_query!(sync_message, name);
     Clone, Queryable, Insertable, Debug, PartialEq, AsChangeset, Default, Serialize, Deserialize, TS,
 )]
 #[diesel(table_name = sync_message)]
+#[diesel(treat_none_as_null = true)]
 pub struct SyncMessageRow {
     pub id: String,
     #[ts(optional)]

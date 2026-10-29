@@ -28,6 +28,7 @@ table! {
     serde::Deserialize,
 )]
 #[diesel(table_name = unit)]
+#[diesel(treat_none_as_null = true)]
 pub struct UnitRow {
     pub id: String,
     pub name: String,

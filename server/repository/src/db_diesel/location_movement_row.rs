@@ -34,6 +34,7 @@ joinable!(location_movement -> location (location_id));
     serde::Deserialize,
 )]
 #[diesel(table_name = location_movement)]
+#[diesel(treat_none_as_null = true)]
 pub struct LocationMovementRow {
     pub id: String,
     pub store_id: String,

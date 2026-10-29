@@ -29,6 +29,7 @@ table! {
     serde::Deserialize,
 )]
 #[diesel(table_name = program_indicator)]
+#[diesel(treat_none_as_null = true)]
 pub struct ProgramIndicatorRow {
     pub id: String,
     pub program_id: String,
