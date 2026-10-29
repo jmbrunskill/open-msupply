@@ -8,7 +8,11 @@ import {
   ModalMode,
   AlertColor,
   useNotification,
+  useNavigate,
+  Button,
+  RouteBuilder,
 } from '@openmsupply-client/common';
+import { AppRoute } from '@openmsupply-client/config';
 import { ItemSelector } from './ItemSelector';
 import { ReturnSteps, Tabs } from './ReturnSteps';
 import { useReturns } from '../../api';
@@ -51,6 +55,7 @@ export const SupplierReturnEditModal = ({
   const t = useTranslation();
   const { currentTab, onChangeTab } = useTabs(Tabs.Quantity);
   const { success, error } = useNotification();
+  const navigate = useNavigate();
   const [itemId, setItemId] = useState<string | undefined>(
     initialItemId ?? undefined
   );
@@ -107,7 +112,24 @@ export const SupplierReturnEditModal = ({
       !!supplierReturn &&
         supplierReturn?.originalShipment?.id &&
         isNewReturn &&
-        success(t('messages.supplier-return-created-shipped'))();
+        success(t('messages.supplier-return-created-shipped'), {
+          action: () => (
+            <Button
+              size="small"
+              sx={{ color: 'white', fontWeight: 'bold' }}
+              onClick={() =>
+                navigate(
+                  RouteBuilder.create(AppRoute.Replenishment)
+                    .addPart(AppRoute.SupplierReturn)
+                    .addPart(supplierReturn.id)
+                    .build()
+                )
+              }
+            >
+              {t('button.view')}
+            </Button>
+          ),
+        })();
       onClose();
     } catch (e) {
       const errorMessage =
