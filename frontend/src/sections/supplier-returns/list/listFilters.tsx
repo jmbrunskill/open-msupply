@@ -25,6 +25,7 @@ const STATUS_OPTIONS = [
   'NEW',
   'PICKED',
   'SHIPPED',
+  'DELIVERED',
   'RECEIVED',
   'VERIFIED',
 ] as const;
