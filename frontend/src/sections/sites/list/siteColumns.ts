@@ -13,8 +13,13 @@ import type { SiteRow } from './siteEdit';
 // key list, so a reader sees its identity, header and cell treatment in one
 // place.
 
+// The server writes these as UTC (`Utc::now().naive_utc()`) but the wire type
+// carries no offset, and `new Date('…T05:13:46')` would read it as LOCAL time —
+// showing the UTC clock reading unconverted (#12546). Mark it UTC first.
+const HAS_OFFSET = /(Z|[+-]\d{2}:?\d{2})$/i;
+
 /**
- * The two timestamp columns are server-local wall clock (`NaiveDateTime`, no
+ * The two timestamp columns are UTC `NaiveDateTime`s (no
  * offset — contract.md § sync pairing state) and each shows date AND time in ONE
  * column, which is the spec's own column set. Absent renders blank, per
  * tables § absent values — never a placeholder.
@@ -28,7 +33,9 @@ import type { SiteRow } from './siteEdit';
  * candidate registry addition; see BUILD_REPORT.
  */
 export const dateTimeText = (value: string | null): string =>
-  value ? localisedDateTime(value) : '';
+  value
+    ? localisedDateTime(HAS_OFFSET.test(value) ? value : `${value}Z`)
+    : '';
 
 /**
  * OMS-FUN-SYC-002.6 — Code, Name, Hardware ID, Sync Version, Version, Last

@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { localisedDateTime } from '@/intl';
 import { dateTimeText, siteColumns } from './siteColumns';
 
 // Anchors: spec/sites/cases/OMS-FUN-SYC-002 (behaviours cited per describe).
@@ -64,5 +65,20 @@ describe('the timestamp columns (ui-surface S1 § columns — "date & time", bla
     const rendered = dateTimeText('2026-08-06T05:13:46');
     expect(rendered).not.toBe('');
     expect(rendered).toMatch(/\d/);
+  });
+
+  it('treats the offset-less server value as UTC and shows it in local time (#12546)', () => {
+    const tz = process.env.TZ;
+    process.env.TZ = 'Pacific/Auckland';
+    try {
+      // The server writes `Utc::now().naive_utc()`; 05:13 UTC is 17:13 (NZST)
+      // in Auckland — not a 05:13 wall-clock reading.
+      expect(dateTimeText('2026-08-06T05:13:46')).toBe(
+        localisedDateTime(new Date(Date.UTC(2026, 7, 6, 5, 13, 46)))
+      );
+    } finally {
+      if (tz === undefined) delete process.env.TZ;
+      else process.env.TZ = tz;
+    }
   });
 });
