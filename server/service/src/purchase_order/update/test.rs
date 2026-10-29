@@ -37,6 +37,10 @@ mod update {
         let context = service_provider
             .context(mock_store_a().id, mock_user_account_a().id)
             .unwrap();
+        crate::purchase_order_line::test_helpers::make_items_visible_in_store_a(
+            &context.connection,
+            &["item_a", "item_b"],
+        );
         let service = service_provider.purchase_order_service;
         let store_id = &mock_store_a().id;
         let purchase_order_id = "closed_purchase_order".to_string();
@@ -192,6 +196,10 @@ mod update {
         let context = service_provider
             .context(mock_store_a().id, mock_user_account_a().id)
             .unwrap();
+        crate::purchase_order_line::test_helpers::make_items_visible_in_store_a(
+            &context.connection,
+            &["item_a", "item_b"],
+        );
         let service = service_provider.purchase_order_service;
 
         let store_id = &mock_store_a().id;
@@ -262,6 +270,10 @@ mod update {
         let context = service_provider
             .context(mock_store_a().id, mock_user_account_a().id)
             .unwrap();
+        crate::purchase_order_line::test_helpers::make_items_visible_in_store_a(
+            &context.connection,
+            &["item_a", "item_b"],
+        );
         let service = service_provider.purchase_order_service;
 
         let store_id = &mock_store_a().id;
@@ -529,6 +541,10 @@ mod update {
         let context = service_provider
             .context(mock_store_a().id, mock_user_account_a().id)
             .unwrap();
+        crate::purchase_order_line::test_helpers::make_items_visible_in_store_a(
+            &context.connection,
+            &["item_a", "item_b"],
+        );
         let service = service_provider.purchase_order_service;
         let store_id = &mock_store_a().id;
         // Written through the preference itself, as the real editor does; the
@@ -598,6 +614,10 @@ mod update {
         let context = service_provider
             .context(mock_store_a().id, mock_user_account_a().id)
             .unwrap();
+        crate::purchase_order_line::test_helpers::make_items_visible_in_store_a(
+            &context.connection,
+            &["item_a", "item_b"],
+        );
         let service = service_provider.purchase_order_service;
 
         let store_id = &mock_store_a().id;

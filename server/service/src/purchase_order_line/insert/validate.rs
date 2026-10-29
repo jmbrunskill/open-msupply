@@ -6,10 +6,10 @@ use crate::{
     validate::{CheckOtherPartyType, OtherPartyErrors, check_other_party},
 };
 use repository::{
-    EqualFilter, ItemRow, ItemRowRepository, ItemStoreJoinRowRepository,
-    ItemStoreJoinRowRepositoryTrait, Pagination, PurchaseOrderLineFilter,
-    PurchaseOrderLineRepository, PurchaseOrderLineRowRepository, PurchaseOrderRowRepository,
-    StorageConnection,
+    EqualFilter, ItemFilter, ItemRepository, ItemRow, ItemRowRepository,
+    ItemStoreJoinRowRepository, ItemStoreJoinRowRepositoryTrait, Pagination,
+    PurchaseOrderLineFilter, PurchaseOrderLineRepository, PurchaseOrderLineRowRepository,
+    PurchaseOrderRowRepository, StorageConnection,
 };
 
 pub fn validate(
@@ -47,6 +47,19 @@ pub fn validate(
                 .flatten()
         })
         .ok_or(InsertPurchaseOrderLineError::ItemDoesNotExist)?;
+
+    // Only items visible in the store (on a master list assigned to it) can be
+    // ordered — the same filter the line editor's item chooser applies, which a
+    // CSV import bypasses (#10890).
+    let visible = ItemRepository::new(connection).query_by_filter(
+        ItemFilter::new()
+            .id(EqualFilter::equal_to(item.id.to_string()))
+            .is_visible(true),
+        Some(store_id.to_string()),
+    )?;
+    if visible.is_empty() {
+        return Err(InsertPurchaseOrderLineError::ItemNotVisible);
+    }
 
     let item_store = ItemStoreJoinRowRepository::new(connection)
         .find_one_by_item_and_store_id(&item.id, store_id)?;
