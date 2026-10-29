@@ -48,8 +48,8 @@ const FACILITY_TYPE = definition();
 const DEFS = [FACILITY_TYPE, POPULATION];
 
 const FACILITIES = [
-  { id: 'name-kopu', code: 'Kopu', properties: '{"latitude":-37.1}' },
-  { id: 'name-opua', code: 'Opua', properties: '{}' },
+  { id: 'name-kopu', code: 'Kopu', name: 'Kopu Clinic', properties: '{"latitude":-37.1}' },
+  { id: 'name-opua', code: 'Opua', name: 'Opua Clinic', properties: '{}' },
 ];
 
 describe('OMS-REG-MNG-02.35 — a non-CSV file is refused before parsing', () => {
@@ -157,6 +157,15 @@ describe('OMS-REG-MNG-02.38 — every bad row is flagged, with all its reasons',
     expect(blankCode.errors).toEqual(['error.missing-required-field']);
     const [blankName] = parse('Kopu,,Maternal Clinic,10\n');
     expect(blankName.errors).toEqual(['error.missing-required-field']);
+  });
+
+  it('shows the facility’s existing name, not the file’s (the import never renames)', () => {
+    const [matched, unmatched] = parse(
+      'Kopu,Renamed In File,Maternal Clinic,10\nNowhere,Whatever,Maternal Clinic,10\n'
+    );
+    expect(matched.name).toBe('Kopu Clinic');
+    // No facility to take a name from: the file's own is all there is.
+    expect(unmatched.name).toBe('Whatever');
   });
 
   it('flags a value outside a property’s allowed values', () => {
