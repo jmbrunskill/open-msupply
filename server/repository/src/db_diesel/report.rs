@@ -129,6 +129,29 @@ impl<'a> ReportRepository<'a> {
         sort: Option<ReportSort>,
     ) -> Result<Vec<Report>, RepositoryError> {
         let mut query = create_filtered_query(filter);
+
+        // Versions are stored as text, so sorting in SQL would be lexicographic
+        // ("2.10.0" < "2.9.0"). Sort numerically in memory (and paginate after).
+        if let Some(sort) = sort.as_ref().filter(|s| s.key == ReportSortField::Version) {
+            let mut rows = query
+                .order_by(report::id.asc())
+                .load::<ReportJoin>(self.connection.lock().connection())?;
+            rows.sort_by(|(a, _), (b, _)| {
+                let ordering = Version::from_str(&a.version).cmp(&Version::from_str(&b.version));
+                if sort.desc.unwrap_or(false) {
+                    ordering.reverse()
+                } else {
+                    ordering
+                }
+            });
+            return rows
+                .into_iter()
+                .skip(pagination.offset as usize)
+                .take(pagination.limit as usize)
+                .map(map_report_row_join_to_report)
+                .collect();
+        }
+
         if let Some(sort) = sort {
             match sort.key {
                 ReportSortField::Id => {
@@ -140,9 +163,7 @@ impl<'a> ReportRepository<'a> {
                 ReportSortField::Code => {
                     apply_sort_no_case!(query, sort, report::code);
                 }
-                ReportSortField::Version => {
-                    apply_sort_no_case!(query, sort, report::version);
-                }
+                ReportSortField::Version => {}
             }
         }
 
@@ -168,7 +189,8 @@ impl<'a> ReportRepository<'a> {
         sort: Option<ReportSort>,
     ) -> Result<Vec<ReportMetaData>, RepositoryError> {
         let mut query = create_filtered_query(filter);
-        if let Some(sort) = sort {
+        let sort_version = sort.as_ref().filter(|s| s.key == ReportSortField::Version);
+        if let Some(sort) = sort.as_ref().filter(|s| s.key != ReportSortField::Version) {
             match sort.key {
                 ReportSortField::Id => {
                     apply_sort_no_case!(query, sort, report::id);
@@ -179,15 +201,24 @@ impl<'a> ReportRepository<'a> {
                 ReportSortField::Code => {
                     apply_sort_no_case!(query, sort, report::code);
                 }
-                ReportSortField::Version => {
-                    apply_sort_no_case!(query, sort, report::version);
-                }
+                ReportSortField::Version => {}
             }
         }
 
-        let result = query
+        let mut result = query
             .select(ReportMetaDataRow::as_select())
             .load::<ReportMetaDataRow>(self.connection.lock().connection())?;
+        if let Some(sort) = sort_version {
+            // Text column, see `query`
+            result.sort_by(|a, b| {
+                let ordering = Version::from_str(&a.version).cmp(&Version::from_str(&b.version));
+                if sort.desc.unwrap_or(false) {
+                    ordering.reverse()
+                } else {
+                    ordering
+                }
+            });
+        }
         Ok(result
             .into_iter()
             .map(ReportMetaData::from_domain)
@@ -235,4 +266,64 @@ fn map_report_row_join_to_report(
         report_row,
         argument_schema: argument_schema.map(schema_from_row).transpose()?,
     })
+}
+
+#[cfg(test)]
+mod test {
+    use crate::{
+        Pagination, ReportRepository, ReportRow, ReportRowRepository, ReportSort, ReportSortField,
+        mock::MockDataInserts, test_db::setup_all,
+    };
+
+    #[actix_rt::test]
+    async fn report_sort_by_version_is_numeric() {
+        let (_, connection, _, _) =
+            setup_all("report_sort_by_version_is_numeric", MockDataInserts::none()).await;
+
+        let versions = ["2.9.0", "2.10.0", "2.2.0", "10.0.0", "2.10.1"];
+        let repo = ReportRowRepository::new(&connection);
+        for (i, version) in versions.iter().enumerate() {
+            repo.upsert_one(&ReportRow {
+                id: format!("report{i}"),
+                code: format!("code{i}"),
+                version: version.to_string(),
+                ..Default::default()
+            })
+            .unwrap();
+        }
+
+        let report_repo = ReportRepository::new(&connection);
+        let sort = |desc| ReportSort {
+            key: ReportSortField::Version,
+            desc: Some(desc),
+        };
+        let query = |desc, offset, limit| {
+            report_repo
+                .query(Pagination { offset, limit }, None, Some(sort(desc)))
+                .unwrap()
+                .into_iter()
+                .map(|r| r.report_row.version)
+                .collect::<Vec<_>>()
+        };
+
+        assert_eq!(
+            query(true, 0, 100),
+            ["10.0.0", "2.10.1", "2.10.0", "2.9.0", "2.2.0"]
+        );
+        assert_eq!(
+            query(false, 0, 100),
+            ["2.2.0", "2.9.0", "2.10.0", "2.10.1", "10.0.0"]
+        );
+        // Pagination applies after sorting
+        assert_eq!(query(true, 2, 2), ["2.10.0", "2.9.0"]);
+
+        let meta = report_repo
+            .query_meta_data(None, Some(sort(true)))
+            .unwrap()
+            .into_iter()
+            .map(|r| r.version.to_string())
+            .collect::<Vec<_>>();
+        assert_eq!(meta[0], "10.0.0");
+        assert_eq!(meta[4], "2.2.0");
+    }
 }
