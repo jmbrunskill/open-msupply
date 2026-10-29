@@ -173,9 +173,17 @@ impl<'a> NameRepository<'a> {
     /// Names will still be present in result even if name_store_join doesn't match store_id in parameters
     /// but it's considered invisible in subsequent filters.
     pub fn create_filtered_query(store_id: String, filter: Option<NameFilter>) -> BoxedNameQuery {
-        let mut query = query(store_id)
-            .into_boxed()
-            .filter(name::type_.ne(NameRowType::Patient));
+        let mut query = query(store_id).into_boxed();
+
+        // or filters need to be applied first (before any and filters), otherwise
+        // `or_filter` ORs against the whole where clause so far, including the
+        // patient / disabled exclusions below
+        if let Some(code_or_name) = filter.as_ref().and_then(|f| f.code_or_name.clone()) {
+            apply_string_filter!(query, Some(code_or_name.clone()), name::code);
+            apply_string_or_filter!(query, Some(code_or_name), name::name_);
+        }
+
+        query = query.filter(name::type_.ne(NameRowType::Patient));
 
         let include_disabled = filter
             .as_ref()
@@ -208,18 +216,12 @@ impl<'a> NameRepository<'a> {
                 address2,
                 country,
                 email,
-                code_or_name,
+                code_or_name: _,
                 supplying_store_id,
                 store,
                 dynamic_filter,
                 include_disabled: _,
             } = f;
-
-            // or filter need to be applied before and filters
-            if code_or_name.is_some() {
-                apply_string_filter!(query, code_or_name.clone(), name::code);
-                apply_string_or_filter!(query, code_or_name, name::name_);
-            }
 
             apply_equal_filter!(query, id, name::id);
             apply_string_filter!(query, code, name::code);
@@ -492,7 +494,8 @@ mod tests {
     use util::constants::INVENTORY_ADJUSTMENT_NAME_CODE;
 
     use crate::{
-        NameFilter, NameRepository, NameRow, NameRowRepository, Pagination, StringFilter,
+        NameFilter, NameRepository, NameRow, NameRowRepository, NameRowType, Pagination,
+        StoreRow, StoreRowRepository, StringFilter,
         mock::{
             MockDataInserts, mock_name_1, mock_test_name_query_store_1,
             mock_test_name_query_store_2,
@@ -620,6 +623,72 @@ mod tests {
     // TODO need to test name_store_join, but it also requires 'store' records to be add and name_store_join helpers
     // which i think might be too much for this test ? Ideally we would have a database snapshot to load in tests
     // I've tested locally with graphIQL, seems to work
+
+    #[actix_rt::test]
+    async fn test_name_query_code_or_name_keeps_exclusions() {
+        let (_, connection, _, _) = test_db::setup_all(
+            "test_name_query_code_or_name_keeps_exclusions",
+            MockDataInserts::none(),
+        )
+        .await;
+
+        let name = |id: &str, r#type: NameRowType| NameRow {
+            id: id.to_string(),
+            name: format!("zzsearch {id}"),
+            code: format!("zzcode_{id}"),
+            r#type,
+            ..Default::default()
+        };
+        let name_repo = NameRowRepository::new(&connection);
+        name_repo
+            .upsert_one(&name("normal", NameRowType::Facility))
+            .unwrap();
+        name_repo
+            .upsert_one(&name("patient", NameRowType::Patient))
+            .unwrap();
+        name_repo
+            .upsert_one(&name("disabled_store", NameRowType::Store))
+            .unwrap();
+        StoreRowRepository::new(&connection)
+            .upsert_one(&StoreRow {
+                id: "disabled_store_id".to_string(),
+                name_id: "disabled_store".to_string(),
+                code: "disabled_store_code".to_string(),
+                is_disabled: true,
+                ..Default::default()
+            })
+            .unwrap();
+
+        let repo = NameRepository::new(&connection);
+        let ids = |filter: NameFilter| -> Vec<String> {
+            let mut ids: Vec<String> = repo
+                .query_by_filter("any_store", filter)
+                .unwrap()
+                .into_iter()
+                .map(|n| n.name_row.id)
+                .collect();
+            ids.sort();
+            ids
+        };
+
+        // match by name
+        assert_eq!(
+            ids(NameFilter::new().code_or_name(StringFilter::like("zzsearch"))),
+            vec!["normal"]
+        );
+        // match by code
+        assert_eq!(
+            ids(NameFilter::new().code_or_name(StringFilter::like("zzcode_"))),
+            vec!["normal"]
+        );
+        // disabled store is returned when explicitly included, patients never are
+        assert_eq!(
+            ids(NameFilter::new()
+                .code_or_name(StringFilter::like("zzsearch"))
+                .include_disabled(true)),
+            vec!["disabled_store", "normal"]
+        );
+    }
 
     #[actix_rt::test]
     async fn test_name_query_sort() {
