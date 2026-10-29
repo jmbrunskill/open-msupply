@@ -1635,7 +1635,7 @@
       "excel_template_buffer": null
     },
     {
-      "id": "item-usage_2_16_2_false",
+      "id": "item-usage_2_16_3_false",
       "name": "Item Usage",
       "description": null,
       "template": {
@@ -1666,7 +1666,7 @@
           "query.graphql": {
             "type": "GraphGLQuery",
             "data": {
-              "query": "query ItemUsage($storeId: String!, $itemCode: String, $itemName: String) {\n  items(\n    storeId: $storeId\n    filter: {\n      code: { like: $itemCode }\n      name: { like: $itemName }\n      isVisibleOrOnHand: true\n      isActive: true\n    }\n  ) {\n    ... on ItemConnector {\n      nodes {\n        id\n        code\n        name\n        stats: stats(storeId: $storeId) {\n          totalConsumption\n          availableMonthsOfStockOnHand\n          stockOnHand\n          averageMonthlyConsumption\n        }\n        AMC12Months: stats(storeId: $storeId, amcLookbackMonths: 12) {\n          averageMonthlyConsumption\n        }\n        AMC24Months: stats(storeId: $storeId, amcLookbackMonths: 24) {\n          averageMonthlyConsumption\n        }\n      }\n    }\n  }\n}\n",
+              "query": "query ItemUsage($storeId: String!, $itemCode: String, $itemName: String) {\n  items(\n    storeId: $storeId\n    filter: {\n      code: { like: $itemCode }\n      name: { like: $itemName }\n      isVisibleOrOnHand: true\n      isActive: true\n      type: { equalTo: STOCK }\n    }\n  ) {\n    ... on ItemConnector {\n      nodes {\n        id\n        code\n        name\n        stats: stats(storeId: $storeId) {\n          totalConsumption\n          availableMonthsOfStockOnHand\n          stockOnHand\n          averageMonthlyConsumption\n        }\n        AMC12Months: stats(storeId: $storeId, amcLookbackMonths: 12) {\n          averageMonthlyConsumption\n        }\n        AMC24Months: stats(storeId: $storeId, amcLookbackMonths: 24) {\n          averageMonthlyConsumption\n        }\n      }\n    }\n  }\n}\n",
               "variables": null
             }
           },
@@ -1726,13 +1726,13 @@
       },
       "context": "REPORT",
       "sub_context": "StockAndItems",
-      "argument_schema_id": "for_report_item-usage_2_16_2_false",
+      "argument_schema_id": "for_report_item-usage_2_16_3_false",
       "comment": null,
       "is_custom": false,
-      "version": "2.16.2",
+      "version": "2.16.3",
       "code": "item-usage",
       "form_schema": {
-        "id": "for_report_item-usage_2_16_2_false",
+        "id": "for_report_item-usage_2_16_3_false",
         "type": "reportArgument",
         "json_schema": {
           "$schema": "http://json-schema.org/draft-07/schema#",
