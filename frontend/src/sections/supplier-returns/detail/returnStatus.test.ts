@@ -9,6 +9,7 @@ import {
   isReturnDisabled,
   nextStatuses,
   statusIndex,
+  statusLabel,
   statusSteps,
   STATUS_FLOW,
 } from './returnStatus';
@@ -44,15 +45,22 @@ const node = (
 });
 
 describe('STATUS_FLOW / statusIndex — the lifecycle sequence (rules § status lifecycle)', () => {
-  it('is New · Picked · Shipped · Received · Verified', () => {
+  it('is New · Picked · Shipped · Delivered · Received · Verified (#10028)', () => {
     expect(STATUS_FLOW).toEqual([
       'NEW',
       'PICKED',
       'SHIPPED',
+      'DELIVERED',
       'RECEIVED',
       'VERIFIED',
     ]);
     expect(statusIndex('SHIPPED')).toBe(2);
+  });
+});
+
+describe('statusLabel (#10028)', () => {
+  it('labels a transfer-mirrored Delivered return as delivered, not received', () => {
+    expect(statusLabel('DELIVERED')).toBe('status.delivered');
   });
 });
 
@@ -102,7 +110,7 @@ describe('statusSteps — the lifecycle indicator', () => {
       STATUS_FLOW,
       node({ status: 'PICKED', pickedDatetime: '2026-01-02T00:00:00Z' })
     );
-    expect(steps).toHaveLength(5);
+    expect(steps).toHaveLength(6);
     expect(steps[0].date).toBe('2026-01-01T00:00:00Z'); // created / NEW
     expect(steps[1].date).toBe('2026-01-02T00:00:00Z'); // picked
     expect(steps[2].date).toBeUndefined(); // shipped — not reached

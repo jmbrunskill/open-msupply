@@ -10,12 +10,13 @@ export type ReturnStatus = SupplierReturnInfoFragment['status'];
 
 // The lifecycle indicator's fixed sequence (rules § status lifecycle): a
 // supplier return at THIS store only ever reaches NEW → PICKED → SHIPPED
-// (forward-only); RECEIVED and VERIFIED belong to the transfer counterpart and
+// (forward-only); DELIVERED, RECEIVED and VERIFIED belong to the transfer counterpart and
 // appear for display only — never advance targets here.
 export const STATUS_FLOW = [
   'NEW',
   'PICKED',
   'SHIPPED',
+  'DELIVERED',
   'RECEIVED',
   'VERIFIED',
 ] as const;
@@ -57,6 +58,9 @@ export const STATUS_LABELS: Record<string, string> = {
   },
   get SHIPPED() {
     return t('status.shipped');
+  },
+  get DELIVERED() {
+    return t('status.delivered');
   },
   get RECEIVED() {
     return t('status.received');
