@@ -8,6 +8,7 @@ import {
   Stack,
   Typography,
   useTranslation,
+  useConfirmationModal,
   LocationIcon,
 } from '@openmsupply-client/common';
 import { Geolocation } from '@capacitor/geolocation';
@@ -145,6 +146,12 @@ export const DisplayCoordinates = ({
     return `${direction} ${degrees}° ${minutes}' ${seconds}"`;
   };
 
+  const confirmUpdateLocation = useConfirmationModal({
+    title: t('heading.are-you-sure'),
+    message: t('messages.confirm-update-live-location'),
+    onConfirm: () => fetchCoordinates(updateCoordinates),
+  });
+
   const isLatitude = true;
   const formattedLatitude = formatCoordinate(latitude ?? 0, isLatitude);
   const formattedLongitude = formatCoordinate(longitude ?? 0, !isLatitude);
@@ -178,7 +185,12 @@ export const DisplayCoordinates = ({
           </Box>
           <ButtonWithIcon
             onClick={() => {
-              fetchCoordinates(updateCoordinates);
+              // Only warn when there are existing coordinates to overwrite
+              if (latitude !== 0 || longitude !== 0) {
+                confirmUpdateLocation();
+              } else {
+                fetchCoordinates(updateCoordinates);
+              }
             }}
             Icon={<LocationIcon />}
             label={t('label.update-live-location')}
