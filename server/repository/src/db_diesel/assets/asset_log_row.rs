@@ -129,6 +129,15 @@ impl<'a> AssetLogRowRepository<'a> {
         Ok(result)
     }
 
+    pub fn find_by_asset_id(
+        &self,
+        asset_id_param: &str,
+    ) -> Result<Vec<AssetLogRow>, RepositoryError> {
+        Ok(asset_log::table
+            .filter(asset_log::asset_id.eq(asset_id_param))
+            .load(self.connection.lock().connection())?)
+    }
+
     pub fn find_many_by_id(&self, ids: &[String]) -> Result<Vec<AssetLogRow>, RepositoryError> {
         Ok(asset_log::table
             .filter(asset_log::id.eq_any(ids))

@@ -1,5 +1,5 @@
 use super::asset_row::asset::dsl::*;
-use crate::asset_log_row::latest_asset_log;
+use crate::asset_log_row::{AssetLogRowRepository, latest_asset_log};
 use crate::db_diesel::store_row::store;
 use crate::{
     ChangelogRepository, ChangelogSyncType, Delete, RepositoryError, RowActionType, SourceSiteId,
@@ -91,6 +91,7 @@ impl<'a> AssetRowRepository<'a> {
         asset_row: &AssetRow,
         original_store_id: Option<String>,
     ) -> Result<(), RepositoryError> {
+        let previous_store_id = self.find_one_by_id(&asset_row.id)?.map(|a| a.store_id);
         self._upsert_one(asset_row)?;
         let changelog = asset_row.generate_changelog(
             self.connection,
@@ -110,6 +111,22 @@ impl<'a> AssetRowRepository<'a> {
             )?;
             original_changelog.store_id = Some(original_store);
             ChangelogRepository::new(self.connection).insert(&original_changelog)?;
+        }
+
+        // Logs (functional status etc.) take their changelog store from the asset's store at
+        // the time they were written. When the asset moves store, re-emit them so the new
+        // store's site receives them.
+        if previous_store_id.is_some_and(|previous| previous != asset_row.store_id) {
+            for log in
+                AssetLogRowRepository::new(self.connection).find_by_asset_id(&asset_row.id)?
+            {
+                let changelog = log.generate_changelog(
+                    self.connection,
+                    RowActionType::Upsert,
+                    SourceSiteId::CurrentSiteId,
+                )?;
+                ChangelogRepository::new(self.connection).insert(&changelog)?;
+            }
         }
         Ok(())
     }
@@ -230,5 +247,49 @@ impl Delete for AssetRowDelete {
                 ..
             })) | Ok(None)
         ));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{
+        ChangelogFilter, ChangelogRepository, ChangelogTableName, CursorAndLimit,
+        asset_row::AssetRowRepository,
+        mock::{MockDataInserts, mock_asset_b, mock_store_b},
+        test_db,
+    };
+
+    #[actix_rt::test]
+    async fn changing_asset_store_re_emits_asset_logs_for_new_store() {
+        let (_, connection, _, _) = test_db::setup_all(
+            "changing_asset_store_re_emits_asset_logs",
+            MockDataInserts::none()
+                .names()
+                .stores()
+                .assets()
+                .asset_logs(),
+        )
+        .await;
+
+        let repo = AssetRowRepository::new(&connection);
+        let mut asset = mock_asset_b();
+        asset.store_id = Some(mock_store_b().id);
+        repo.upsert_one(&asset, mock_asset_b().store_id).unwrap();
+
+        let rows = ChangelogRepository::new(&connection)
+            .query(
+                ChangelogFilter::data_for_store(&mock_store_b().id),
+                CursorAndLimit {
+                    cursor: 0,
+                    limit: 1000,
+                },
+            )
+            .unwrap()
+            .rows;
+        assert!(
+            rows.iter()
+                .any(|r| r.table_name == ChangelogTableName::AssetLog && r.record_id == "log_a"),
+            "asset logs should be visible to the new store"
+        );
     }
 }
