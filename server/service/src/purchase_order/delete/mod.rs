@@ -10,6 +10,7 @@ use crate::{
     purchase_order::common::get_lines_for_purchase_order,
     purchase_order_line::delete::{DeletePurchaseOrderLineError, delete_purchase_order_lines},
     service_provider::ServiceContext,
+    sync_file_reference::delete_attached_sync_files,
 };
 
 type OutError = DeletePurchaseOrderError;
@@ -39,6 +40,8 @@ pub fn delete_purchase_order(
                 None,
                 None,
             )?;
+
+            delete_attached_sync_files(connection, "purchase_order", &id)?;
 
             match PurchaseOrderRowRepository::new(connection).delete(&id) {
                 Ok(_) => Ok(id.clone()),
@@ -98,10 +101,12 @@ where
 mod test {
     use repository::{
         PurchaseOrderRow, PurchaseOrderRowRepository, PurchaseOrderStatus,
+        SyncFileReferenceRowRepository,
         mock::{
             MockDataInserts, mock_purchase_order_a, mock_purchase_order_c, mock_purchase_order_d,
             mock_store_a,
         },
+        sync_file_reference_row::SyncFileReferenceRow,
         test_db::setup_all,
     };
 
@@ -186,5 +191,42 @@ mod test {
                 .unwrap(),
             None
         );
+    }
+
+    #[actix_rt::test]
+    async fn delete_purchase_order_soft_deletes_attached_sync_files() {
+        let (_, connection, connection_manager, _) = setup_all(
+            "delete_purchase_order_soft_deletes_attached_sync_files",
+            MockDataInserts::all(),
+        )
+        .await;
+
+        let service_provider = ServiceProvider::new(connection_manager);
+        let context = service_provider
+            .context(mock_store_a().id, "".to_string())
+            .unwrap();
+
+        let file_row = |id: &str, record_id: &str| SyncFileReferenceRow {
+            id: id.to_string(),
+            table_name: "purchase_order".to_string(),
+            record_id: record_id.to_string(),
+            file_name: format!("{id}.pdf"),
+            ..Default::default()
+        };
+        let repo = SyncFileReferenceRowRepository::new(&connection);
+        repo.upsert_one(&file_row("po_file", &mock_purchase_order_a().id))
+            .unwrap();
+        repo.upsert_one(&file_row("other_po_file", "some_other_purchase_order"))
+            .unwrap();
+
+        service_provider
+            .purchase_order_service
+            .delete_purchase_order(&context, &mock_store_a().id, mock_purchase_order_a().id)
+            .unwrap();
+
+        let deleted = repo.find_one_by_id("po_file").unwrap().unwrap();
+        assert!(deleted.deleted_datetime.is_some());
+        let other = repo.find_one_by_id("other_po_file").unwrap().unwrap();
+        assert!(other.deleted_datetime.is_none());
     }
 }

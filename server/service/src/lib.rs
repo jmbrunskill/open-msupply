@@ -107,6 +107,7 @@ pub mod store;
 pub mod store_preference;
 pub mod subscription;
 pub mod sync;
+pub mod sync_file_reference;
 pub mod sync_message;
 pub mod sync_v7;
 pub mod temperature_excursion;
