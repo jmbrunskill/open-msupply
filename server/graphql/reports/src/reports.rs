@@ -49,8 +49,6 @@ pub enum ReportContext {
     Patient,
     Dispensary,
     Repack,
-    OutboundReturn,
-    InboundReturn,
     Report,
     Prescription,
     InternalOrder,
