@@ -82,6 +82,19 @@ impl<'a> TemperatureLogRowRepository<'a> {
             .filter(temperature_log::id.eq_any(temperature_log_ids))
             .set(temperature_log::temperature_breach_id.eq(breach_id))
             .execute(self.connection.lock().connection())?;
+
+        let logs = temperature_log::table
+            .filter(temperature_log::id.eq_any(temperature_log_ids))
+            .load::<TemperatureLogRow>(self.connection.lock().connection())?;
+
+        for log in &logs {
+            let changelog = log.generate_changelog(
+                self.connection,
+                RowActionType::Upsert,
+                SourceSiteId::CurrentSiteId,
+            )?;
+            ChangelogRepository::new(self.connection).insert(&changelog)?;
+        }
         Ok(())
     }
 

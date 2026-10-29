@@ -199,6 +199,24 @@ impl<'a> InvoiceLineRowRepository<'a> {
         ChangelogRepository::new(self.connection).insert(&changelog)
     }
 
+    /// Field updaters write columns directly, bypassing `upsert_one`, so they must record a
+    /// changelog themselves or the change is never synced.
+    ///
+    /// A line that no longer exists (e.g. a placeholder line deleted earlier in the same
+    /// transaction) has nothing to sync, its delete already has its own changelog.
+    fn insert_upsert_changelog(&self, record_id: &str) -> Result<(), RepositoryError> {
+        if self.find_one_by_id(record_id)?.is_none() {
+            return Ok(());
+        }
+        let changelog = InvoiceLineRow::generate_changelog(
+            RowOrId::Id(record_id),
+            self.connection,
+            RowActionType::Upsert,
+            SourceSiteId::CurrentSiteId,
+        )?;
+        ChangelogRepository::new(self.connection).insert(&changelog)
+    }
+
     pub fn update_reason_option_id(
         &self,
         record_id: &str,
@@ -208,7 +226,7 @@ impl<'a> InvoiceLineRowRepository<'a> {
             .filter(invoice_line_with_links::id.eq(record_id))
             .set(invoice_line_with_links::reason_option_id.eq(reason_id))
             .execute(self.connection.lock().connection())?;
-        Ok(())
+        self.insert_upsert_changelog(record_id)
     }
 
     pub fn update_tax(
@@ -224,7 +242,7 @@ impl<'a> InvoiceLineRowRepository<'a> {
                 invoice_line_with_links::total_after_tax.eq(total_after_tax_calculation),
             ))
             .execute(self.connection.lock().connection())?;
-        Ok(())
+        self.insert_upsert_changelog(record_id)
     }
 
     pub fn update_currency(
@@ -239,7 +257,7 @@ impl<'a> InvoiceLineRowRepository<'a> {
                     .eq(foreign_currency_price_before_tax_calculation),
             )
             .execute(self.connection.lock().connection())?;
-        Ok(())
+        self.insert_upsert_changelog(record_id)
     }
 
     pub fn update_cost_price(&self, line: &InvoiceLineRow) -> Result<(), RepositoryError> {
@@ -254,7 +272,7 @@ impl<'a> InvoiceLineRowRepository<'a> {
                     .eq(line.foreign_currency_price_before_tax),
             ))
             .execute(self.connection.lock().connection())?;
-        Ok(())
+        self.insert_upsert_changelog(&line.id)
     }
 
     pub fn update_note_by_invoice_and_item_id(
@@ -268,6 +286,15 @@ impl<'a> InvoiceLineRowRepository<'a> {
             .filter(invoice_line_with_links::item_link_id.eq(item_link))
             .set(invoice_line_with_links::note.eq(new_note))
             .execute(self.connection.lock().connection())?;
+
+        let ids: Vec<String> = invoice_line_with_links::table
+            .filter(invoice_line_with_links::invoice_id.eq(invoice))
+            .filter(invoice_line_with_links::item_link_id.eq(item_link))
+            .select(invoice_line_with_links::id)
+            .load(self.connection.lock().connection())?;
+        for line_id in ids {
+            self.insert_upsert_changelog(&line_id)?;
+        }
         Ok(())
     }
 
@@ -417,5 +444,67 @@ impl Upsert for InvoiceLineRow {
 
     fn as_mut_any(&mut self) -> Option<&mut dyn Any> {
         Some(self)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{
+        ChangelogCondition, ChangelogRepository, ChangelogTableName, CursorAndLimit,
+        InvoiceLineRowRepository,
+        mock::{MockDataInserts, mock_outbound_shipment_a_invoice_lines},
+        test_db,
+    };
+
+    /// Field updaters bypass `upsert_one`, so each must write its own changelog (#4595)
+    #[actix_rt::test]
+    async fn invoice_line_field_updaters_create_changelogs() {
+        let (_, connection, _, _) = test_db::setup_all(
+            "invoice_line_field_updaters_create_changelogs",
+            MockDataInserts::all(),
+        )
+        .await;
+        let repo = InvoiceLineRowRepository::new(&connection);
+        let line = mock_outbound_shipment_a_invoice_lines().remove(0);
+        let changelog_repo = ChangelogRepository::new(&connection);
+
+        let changes_for_line = |cursor: u64| {
+            changelog_repo
+                .query(
+                    ChangelogCondition::True(),
+                    CursorAndLimit {
+                        cursor: cursor as i64,
+                        limit: 1000,
+                    },
+                )
+                .unwrap()
+                .rows
+                .into_iter()
+                .filter(|r| {
+                    r.table_name == ChangelogTableName::InvoiceLine && r.record_id == line.id
+                })
+                .count()
+        };
+
+        let cursor = changelog_repo.max_cursor().unwrap();
+        repo.update_tax(&line.id, Some(10.0), 11.0).unwrap();
+        assert_eq!(changes_for_line(cursor), 1);
+
+        let cursor = changelog_repo.max_cursor().unwrap();
+        repo.update_currency(&line.id, Some(5.0)).unwrap();
+        assert_eq!(changes_for_line(cursor), 1);
+
+        let cursor = changelog_repo.max_cursor().unwrap();
+        repo.update_reason_option_id(&line.id, None).unwrap();
+        assert_eq!(changes_for_line(cursor), 1);
+
+        let cursor = changelog_repo.max_cursor().unwrap();
+        repo.update_note_by_invoice_and_item_id(
+            &line.invoice_id,
+            &line.item_id,
+            Some("n".to_string()),
+        )
+        .unwrap();
+        assert_eq!(changes_for_line(cursor), 1);
     }
 }
