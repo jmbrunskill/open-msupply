@@ -12,7 +12,7 @@ import { Stack } from '../../ui/layout/Stack/Stack';
 import { UploadIcon } from '../../ui/icons';
 import { uploadSyncFiles } from '../../domain/syncFiles';
 import { InsertHelpDocument } from './helpDocumentMutations.generated';
-import { titleForUpload } from './helpDocumentsLogic';
+import { titleForFile } from './helpDocumentsLogic';
 
 // S3 — the upload dialog (spec/help S3), a modal over the S2 management screen.
 // The two-step publish: a title, then one file (OMS-REG-HLP-01.29). The record
@@ -47,9 +47,10 @@ export const UploadHelpDocumentModal: Component<{
 
   const publish = async (file: File) => {
     setErrorMessage(undefined);
-    // OMS-REG-HLP-01.29/.30: a file supplied with an empty (or whitespace-only)
-    // title is refused client-side — nothing is created or queued.
-    const checked = titleForUpload(title());
+    // OMS-REG-HLP-01.29/.30: no usable title is refused client-side — nothing
+    // is created or queued. #12468: an empty title defaults to the file name,
+    // so a file can be picked before a title is typed.
+    const checked = titleForFile(title(), file.name);
     if (!checked.ok) {
       setErrorMessage(t('error.help-document-title-required'));
       return;

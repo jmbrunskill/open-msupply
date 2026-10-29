@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { sortDocuments, titleForUpload } from './helpDocumentsLogic';
+import { sortDocuments, titleForFile, titleForUpload } from './helpDocumentsLogic';
 
 describe('titleForUpload (OMS-REG-HLP-01.29/.30)', () => {
   it('trims surrounding whitespace on a valid title', () => {
@@ -15,6 +15,31 @@ describe('titleForUpload (OMS-REG-HLP-01.29/.30)', () => {
 
   it('rejects a whitespace-only title', () => {
     expect(titleForUpload('   ')).toEqual({ ok: false });
+  });
+});
+
+describe('titleForFile (#12468)', () => {
+  it('keeps a typed title, trimmed', () => {
+    expect(titleForFile('  Guide ', 'a.pdf')).toEqual({
+      ok: true,
+      title: 'Guide',
+    });
+  });
+
+  it('defaults an empty title to the file name without extension', () => {
+    expect(titleForFile('', 'Cold chain guide.v2.pdf')).toEqual({
+      ok: true,
+      title: 'Cold chain guide.v2',
+    });
+    expect(titleForFile('   ', 'notes.pdf')).toEqual({
+      ok: true,
+      title: 'notes',
+    });
+  });
+
+  it('is still refused when there is no title and no usable file name', () => {
+    expect(titleForFile('', '')).toEqual({ ok: false });
+    expect(titleForFile('', '.pdf')).toEqual({ ok: false });
   });
 });
 
