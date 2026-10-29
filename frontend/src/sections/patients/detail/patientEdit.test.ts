@@ -223,6 +223,14 @@ describe('toUpdateInput (OMS-REG-DIS-02.41 — plain edit is a destructive full 
     });
   });
 
+  it('trims the code so padding cannot make a look-alike duplicate (#7420)', () => {
+    const input = toUpdateInput('id-9', { ...fullDraft(), code: '  P-9  ' });
+    expect(input.code).toBe('P-9');
+    expect(toInsertInput('id-9', { ...fullDraft(), code: ' P-9 ' }).code).toBe(
+      'P-9'
+    );
+  });
+
   it('never carries a `name` field — the display name is derived', () => {
     expect('name' in toUpdateInput('id-1', fullDraft())).toBe(false);
   });

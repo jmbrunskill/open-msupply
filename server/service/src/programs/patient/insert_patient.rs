@@ -77,7 +77,8 @@ fn generate(input: InsertPatient, store_id: &str) -> NameRow {
     NameRow {
         id,
         name: patient_name(&first_name, &last_name),
-        code,
+        // Padding must not make a look-alike duplicate of an existing code
+        code: code.trim().to_string(),
         r#type,
         is_customer: true,
         is_supplier: false,
@@ -148,5 +149,24 @@ pub(crate) fn insert_patient(
 impl From<RepositoryError> for InsertPatientError {
     fn from(err: RepositoryError) -> Self {
         InsertPatientError::DatabaseError(err)
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn generate_trims_patient_code() {
+        let row = generate(
+            InsertPatient {
+                id: "id".to_string(),
+                code: "  patient1   ".to_string(),
+                r#type: NameRowType::Patient,
+                ..Default::default()
+            },
+            "store_a",
+        );
+        assert_eq!(row.code, "patient1");
     }
 }

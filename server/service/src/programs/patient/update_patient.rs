@@ -56,7 +56,8 @@ fn generate(existing: NameRow, update: UpdatePatient) -> NameRow {
     } = update;
 
     NameRow {
-        code,
+        // Padding must not make a look-alike duplicate of an existing code
+        code: code.trim().to_string(),
         name: patient_name(&first_name, &last_name),
         first_name,
         last_name,
@@ -138,5 +139,23 @@ pub(crate) fn update_patient(
 impl From<RepositoryError> for UpdatePatientError {
     fn from(err: RepositoryError) -> Self {
         UpdatePatientError::DatabaseError(err)
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn generate_trims_patient_code() {
+        let row = generate(
+            NameRow::default(),
+            UpdatePatient {
+                id: "id".to_string(),
+                code: "  patient1   ".to_string(),
+                ..Default::default()
+            },
+        );
+        assert_eq!(row.code, "patient1");
     }
 }
