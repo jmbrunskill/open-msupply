@@ -29,6 +29,7 @@ pub enum InsertAssetError {
     SerialNumberAlreadyExists,
     AssetNumberAlreadyExists,
     InvalidMappingDate { key: String, value: String },
+    MappingDateInFuture { key: String, value: String },
 }
 
 #[derive(PartialEq, Debug, Clone, Default)]

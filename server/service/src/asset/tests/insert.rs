@@ -170,6 +170,55 @@ mod query {
         );
     }
 
+    /// #11620: the UI refuses future mapping dates, but a CSV import carried them in
+    /// `properties` unchecked.
+    #[actix_rt::test]
+    async fn asset_service_insert_rejects_future_csv_mapping_dates() {
+        let (_, connection, connection_manager, _) = setup_all(
+            "asset_service_insert_rejects_future_csv_mapping_dates",
+            MockDataInserts::none().stores().user_accounts(),
+        )
+        .await;
+
+        let service_provider = ServiceProvider::new(connection_manager);
+        let ctx = service_provider
+            .context(mock_store_a().id, mock_user_account_a().id)
+            .unwrap();
+        let service = service_provider.asset_service;
+
+        let future = (Utc::now() + Duration::days(30))
+            .format("%Y-%m-%d")
+            .to_string();
+
+        for key in ["initial_mapping_date", "most_recent_mapping_date"] {
+            let result = service.insert_asset(
+                &ctx,
+                InsertAsset {
+                    id: format!("future_{key}"),
+                    store_id: Some(mock_store_a().id),
+                    asset_number: Some(format!("future_asset_{key}")),
+                    catalogue_item_id: Some("189ef51c-d232-4da7-b090-ca3a53d31f58".to_string()),
+                    properties: Some(serde_json::json!({ key: future }).to_string()),
+                    ..Default::default()
+                },
+            );
+            assert_eq!(
+                result,
+                Err(InsertAssetError::MappingDateInFuture {
+                    key: key.to_string(),
+                    value: future.clone()
+                })
+            );
+            // nothing was created
+            assert!(
+                AssetRowRepository::new(&connection)
+                    .find_one_by_id(&format!("future_{key}"))
+                    .unwrap()
+                    .is_none()
+            );
+        }
+    }
+
     /// Regression test for #11413: CSV-imported mapping dates were stored only as static
     /// properties on the asset. When a UI mapping was later recorded, `recalculate_mapping_dates`
     /// would overwrite both dates from the (single) new log, losing the imported initial date.
