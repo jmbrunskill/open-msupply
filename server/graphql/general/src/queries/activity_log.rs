@@ -65,10 +65,20 @@ pub fn activity_logs(
     filter: Option<ActivityLogFilterInput>,
     sort: Option<Vec<ActivityLogSortInput>>,
 ) -> Result<ActivityLogResponse> {
+    // Logs for a specific record (the Log tab of a detail view) only need access to the store;
+    // LOG_QUERY is for browsing admin-level logs across records.
+    let for_specific_records = filter
+        .as_ref()
+        .and_then(|f| f.record_id.as_ref())
+        .is_some_and(|r| r.equal_to.is_some() || r.equal_any.is_some());
     validate_auth(
         ctx,
         &ResourceAccessRequest {
-            resource: Resource::QueryLog,
+            resource: if for_specific_records {
+                Resource::QueryRecordLog
+            } else {
+                Resource::QueryLog
+            },
             store_id: Some(store_id),
             require_central_standalone: false,
         },
