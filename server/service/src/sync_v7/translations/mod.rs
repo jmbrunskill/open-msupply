@@ -3,7 +3,7 @@ pub mod store;
 pub mod sync_file_reference;
 pub mod temperature_log;
 
-use repository::{RowOrDelete, StorageConnection, migrations::Version, syncv7::SyncError};
+use repository::{Row, RowOrDelete, StorageConnection, migrations::Version, syncv7::SyncError};
 
 use crate::sync_v7::{serde::serialize, sync::SyncRecordV7};
 
@@ -20,11 +20,17 @@ pub struct SendContext<'a> {
 /// the typed row, or the delete, and may leave it out or add others;
 /// `SyncBatchV7::generate` tops the batch back up.
 pub(crate) fn translate_outgoing(
-    _context: &SendContext,
+    context: &SendContext,
     row_or_delete: RowOrDelete,
 ) -> Result<Vec<SyncRecordV7>, SyncError> {
     match row_or_delete {
         // Special cases go here by row type, each calling its table's module
+        RowOrDelete::Row {
+            changelog,
+            row: Row::Store(store),
+        } => Ok(vec![store::translate_outgoing_store(
+            context, changelog, store,
+        )?]),
 
         // Basic
         RowOrDelete::Row { changelog, row } => {
