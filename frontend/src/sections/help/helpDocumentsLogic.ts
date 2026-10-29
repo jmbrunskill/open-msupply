@@ -13,6 +13,14 @@ export const titleForUpload = (raw: string): TitleCheck => {
   return title.length > 0 ? { ok: true, title } : { ok: false };
 };
 
+// #12468: the user may pick the file before typing a title. An empty title then
+// defaults to the file name (extension removed) rather than blocking the upload.
+export const titleForFile = (raw: string, fileName: string): TitleCheck => {
+  const typed = titleForUpload(raw);
+  if (typed.ok) return typed;
+  return titleForUpload(fileName.replace(/\.[^.]*$/, ''));
+};
+
 // Client-side Title sort (OMS-REG-HLP-01.33): the management list arrives
 // server-ordered newest-first, and Title is the one client-sortable column. No
 // sort → the server order is preserved (identity, same array reference); a sort
