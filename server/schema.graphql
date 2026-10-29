@@ -4419,6 +4419,10 @@ input InvoiceFilterInput {
 	id: EqualFilterStringInput
 	nameId: EqualFilterStringInput
 	invoiceNumber: EqualFilterBigNumberInput
+	"""
+	Matches invoices whose number starts with these digits (e.g. `61` matches 61, 610, 611)
+	"""
+	invoiceNumberStartsWith: String
 	invoiceNumberOrStatus: StringFilterInput
 	otherPartyName: StringFilterInput
 	otherPartyId: EqualFilterStringInput
@@ -8149,6 +8153,10 @@ input RequisitionFilterInput {
 	id: EqualFilterStringInput
 	userId: EqualFilterStringInput
 	requisitionNumber: EqualFilterBigNumberInput
+	"""
+	Matches requisitions whose number starts with these digits (e.g. `61` matches 61, 610, 611)
+	"""
+	requisitionNumberStartsWith: String
 	type: EqualFilterRequisitionTypeInput
 	status: EqualFilterRequisitionStatusInput
 	createdDatetime: DatetimeFilterInput

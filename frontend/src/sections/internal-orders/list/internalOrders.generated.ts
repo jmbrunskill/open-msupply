@@ -53,6 +53,7 @@ export type InternalOrdersVariables = {
     equalAnyOrNull?: Array<number> | null;
     notEqualAll?: Array<number> | null;
   } | null;
+    requisitionNumberStartsWith?: string | null;
     type?: {
     equalTo?: "REQUEST" | "RESPONSE" | "IMPREST" | "STOCK_HISTORY" | null;
     equalAny?: Array<"REQUEST" | "RESPONSE" | "IMPREST" | "STOCK_HISTORY"> | null;

@@ -118,20 +118,18 @@ const FILTERS: Filter<PrescriptionFilter>[] =
         />
       ),
     },
-    invoiceNumber: {
+    invoiceNumberStartsWith: {
       label: () => t('label.invoice-number'),
       render: props => (
         <FilterTextInput
           label={t('label.invoice-number')}
           testId={props.testId}
-          value={`${props.filter().invoiceNumber?.equalTo ?? ''}`}
-          onInput={value => {
-            const parsed = Number(value);
+          value={props.filter().invoiceNumberStartsWith ?? ''}
+          onInput={value =>
             props.setPartialFilter({
-              invoiceNumber:
-                value && Number.isFinite(parsed) ? { equalTo: parsed } : null,
-            });
-          }}
+              invoiceNumberStartsWith: value.trim() || null,
+            })
+          }
         />
       ),
     },
@@ -143,6 +141,7 @@ const FILTERS: Filter<PrescriptionFilter>[] =
     // a chip in this wire-filter map.
     id: null,
     nameId: null,
+    invoiceNumber: null,
     invoiceNumberOrStatus: null,
     otherPartyId: null,
     storeId: null,

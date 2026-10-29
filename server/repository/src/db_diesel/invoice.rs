@@ -33,6 +33,9 @@ pub struct Invoice {
 pub struct InvoiceFilter {
     pub id: Option<EqualFilter<String>>,
     pub invoice_number: Option<EqualFilter<i64>>,
+    /// Matches invoices whose number, written in decimal, starts with this
+    /// string (digits only; anything else matches nothing)
+    pub invoice_number_starts_with: Option<String>,
     pub invoice_number_or_status: Option<StringFilter>,
     pub name_id: Option<EqualFilter<String>>,
     pub name: Option<StringFilter>,
@@ -241,6 +244,7 @@ fn create_filtered_query(filter: Option<InvoiceFilter>) -> BoxedInvoiceQuery {
         let InvoiceFilter {
             id,
             invoice_number,
+            invoice_number_starts_with,
             invoice_number_or_status,
             name_id,
             name,
@@ -302,6 +306,22 @@ fn create_filtered_query(filter: Option<InvoiceFilter>) -> BoxedInvoiceQuery {
 
         apply_equal_filter!(query, id, invoice::id);
         apply_equal_filter!(query, invoice_number, invoice::invoice_number);
+        // Prefix match on the number written in decimal. Digits only, so no LIKE
+        // wildcards can get in; any other non-blank input matches nothing.
+        if let Some(prefix) = invoice_number_starts_with {
+            let prefix = prefix.trim();
+            if prefix.chars().all(|c| c.is_ascii_digit()) {
+                if !prefix.is_empty() {
+                    query = query.filter(
+                        invoice::invoice_number
+                            .cast::<diesel::sql_types::Text>()
+                            .like(format!("{prefix}%")),
+                    );
+                }
+            } else {
+                query = query.filter(diesel::dsl::sql::<diesel::sql_types::Bool>("1 = 0"));
+            }
+        }
         apply_equal_filter!(query, name_id, name::id);
         apply_string_filter!(query, name, name::name_);
         apply_equal_filter!(query, store_id, invoice::store_id);
@@ -679,5 +699,46 @@ mod tests {
                     .map(|comment| comment.to_lowercase()),
             );
         }
+    }
+
+    #[actix_rt::test]
+    async fn invoice_number_starts_with_filter() {
+        use crate::InvoiceFilter;
+        let (_, connection, _, _) =
+            test_db::setup_all("invoice_number_starts_with_filter", MockDataInserts::all()).await;
+        let repo = InvoiceRepository::new(&connection);
+        let all = repo.query_by_filter(InvoiceFilter::new()).unwrap();
+        let numbers: Vec<i64> = all.iter().map(|i| i.invoice_row.invoice_number).collect();
+        // a prefix that is shorter than at least one number
+        let prefix = numbers
+            .iter()
+            .map(|n| n.to_string())
+            .find(|n| n.len() > 1)
+            .map(|n| n[..1].to_string())
+            .expect("mock data has a multi digit invoice number");
+
+        let query = |p: &str| {
+            let mut f = InvoiceFilter::new();
+            f.invoice_number_starts_with = Some(p.to_string());
+            let mut r: Vec<i64> = repo
+                .query_by_filter(f)
+                .unwrap()
+                .iter()
+                .map(|i| i.invoice_row.invoice_number)
+                .collect();
+            r.sort();
+            r
+        };
+        let mut expected: Vec<i64> = numbers
+            .iter()
+            .copied()
+            .filter(|n| n.to_string().starts_with(&prefix))
+            .collect();
+        expected.sort();
+        assert!(expected.iter().any(|n| n.to_string() != prefix));
+        assert_eq!(query(&prefix), expected);
+        assert!(query("x").is_empty());
+        assert!(query("1%").is_empty());
+        assert_eq!(query("").len(), all.len());
     }
 }

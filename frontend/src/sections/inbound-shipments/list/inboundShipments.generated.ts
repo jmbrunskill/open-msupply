@@ -84,6 +84,7 @@ export type InboundShipmentsVariables = {
     equalAnyOrNull?: Array<number> | null;
     notEqualAll?: Array<number> | null;
   } | null;
+    invoiceNumberStartsWith?: string | null;
     invoiceNumberOrStatus?: {
     equalTo?: string | null;
     like?: string | null;

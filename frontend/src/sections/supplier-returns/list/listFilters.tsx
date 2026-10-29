@@ -116,6 +116,7 @@ export const createFilters = (
     // Number / reference filters — not offered on this list (the spec's S1
     // names name + status only; number deep-linking goes via the URL).
     invoiceNumber: null,
+    invoiceNumberStartsWith: null,
     invoiceNumberOrStatus: null,
     purchaseOrderNumber: null,
     prescriptionRequestId: null,

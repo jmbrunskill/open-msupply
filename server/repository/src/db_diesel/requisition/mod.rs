@@ -11,6 +11,8 @@ pub struct RequisitionFilter {
     pub id: Option<EqualFilter<String>>,
     pub user_id: Option<EqualFilter<String>>,
     pub requisition_number: Option<EqualFilter<i64>>,
+    /// Number, written in decimal, starts with this string (digits only)
+    pub requisition_number_starts_with: Option<String>,
     pub r#type: Option<EqualFilter<RequisitionType>>,
     pub status: Option<EqualFilter<RequisitionStatus>>,
     pub created_datetime: Option<DatetimeFilter>,

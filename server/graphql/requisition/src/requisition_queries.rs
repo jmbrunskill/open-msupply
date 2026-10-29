@@ -69,6 +69,8 @@ pub struct RequisitionFilterInput {
     pub id: Option<EqualFilterStringInput>,
     pub user_id: Option<EqualFilterStringInput>,
     pub requisition_number: Option<EqualFilterBigNumberInput>,
+    /// Matches requisitions whose number starts with these digits (e.g. `61` matches 61, 610, 611)
+    pub requisition_number_starts_with: Option<String>,
     pub r#type: Option<EqualFilterRequisitionTypeInput>,
     pub status: Option<EqualFilterRequisitionStatusInput>,
     pub created_datetime: Option<DatetimeFilterInput>,
@@ -220,6 +222,7 @@ impl RequisitionFilterInput {
             id: self.id.map(EqualFilter::from),
             user_id: self.user_id.map(EqualFilter::from),
             requisition_number: self.requisition_number.map(EqualFilter::from),
+            requisition_number_starts_with: self.requisition_number_starts_with,
             r#type: self.r#type.map(|t| map_filter!(t, RequisitionType::from)),
             status: self.status.map(|t| map_filter!(t, RequisitionStatus::from)),
             created_datetime: self.created_datetime.map(DatetimeFilter::from),
