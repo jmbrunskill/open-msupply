@@ -181,7 +181,7 @@ mod finalise {
         // Check the store of the internal order is the same as the RnR form
         assert_eq!(requisition.requisition_row.store_id, mock_store_a().id);
 
-        // Check the same number of lines in the internal order as the RnR form
+        // Lines with a zero requested quantity (rnr_form_b_line_a in mock data) are not sent
         let requisition_lines =
             RequisitionLineRepository::new(&context.connection)
                 .query_by_filter(RequisitionLineFilter::new().requisition_id(
@@ -189,7 +189,12 @@ mod finalise {
                 ))
                 .unwrap();
 
-        assert_eq!(requisition_lines.len(), 3); // 1 from rnr_form mock data, plus 2 (above)
+        assert_eq!(requisition_lines.len(), 2);
+        assert!(
+            requisition_lines
+                .iter()
+                .all(|line| line.requisition_line_row.requested_quantity > 0.0)
+        );
 
         // Check correct data was populated
         let auto_populated_line = &requisition_lines
