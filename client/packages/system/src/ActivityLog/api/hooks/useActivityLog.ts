@@ -11,6 +11,8 @@ import { ActivityLogRowFragment } from '../operations.generated';
 import { useActivityLogGraphQL } from '../useActivityLogGraphQL';
 import { ACTIVITY_LOG } from './keys';
 
+const ACTIVITY_LOG_POLL_INTERVAL_MS = 10 * 1000;
+
 export function useActivityLog(
   recordId: string,
   enabled: boolean = true,
@@ -45,6 +47,9 @@ export function useActivityLog(
     queryKey,
     queryFn,
     enabled,
+    // Logs are often a server-side side effect of other actions (e.g. status
+    // changes) so can't be invalidated reliably. Poll while the log is shown.
+    refetchInterval: ACTIVITY_LOG_POLL_INTERVAL_MS,
   });
   return query;
 }
