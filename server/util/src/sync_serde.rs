@@ -410,4 +410,189 @@ mod test {
         assert!(d.is_err());
         println!("Error message: {}", d.err().unwrap());
     }
+
+    // -- Remaining deserialisers (#8270). These pin down current behaviour, including the
+    // sharp edges, so a change to any of them is a conscious one.
+
+    #[derive(Deserialize, Debug, PartialEq)]
+    struct EmptyStrString {
+        #[serde(default, deserialize_with = "empty_str_as_option_string")]
+        v: Option<String>,
+    }
+
+    #[test]
+    fn test_empty_str_as_option_string() {
+        let parse = |j: &str| serde_json::from_str::<EmptyStrString>(j);
+        assert_eq!(parse(r#"{"v":"abc"}"#).unwrap().v, Some("abc".to_string()));
+        assert_eq!(parse(r#"{"v":""}"#).unwrap().v, None);
+        assert_eq!(parse(r#"{"v":null}"#).unwrap().v, None);
+        assert_eq!(parse(r#"{}"#).unwrap().v, None);
+        // Whitespace is not empty
+        assert_eq!(parse(r#"{"v":" "}"#).unwrap().v, Some(" ".to_string()));
+        // Non-string values are an error, not a panic
+        assert!(parse(r#"{"v":5}"#).is_err());
+    }
+
+    #[derive(Deserialize, Debug, PartialEq)]
+    #[serde(bound(deserialize = "T: serde::de::DeserializeOwned"))]
+    struct EmptyStrGeneric<T: serde::de::DeserializeOwned> {
+        #[serde(default, deserialize_with = "empty_str_as_option")]
+        v: Option<T>,
+    }
+
+    #[test]
+    fn test_empty_str_as_option_generic() {
+        // enum from string
+        let parse = |j: &str| serde_json::from_str::<EmptyStrGeneric<Status>>(j);
+        assert_eq!(parse(r#"{"v":"NEW"}"#).unwrap().v, Some(Status::New));
+        assert_eq!(parse(r#"{"v":""}"#).unwrap().v, None);
+        assert_eq!(parse(r#"{"v":null}"#).unwrap().v, None);
+        assert_eq!(parse(r#"{}"#).unwrap().v, None);
+        assert!(parse(r#"{"v":"bogus"}"#).is_err());
+
+        // Number-like T works when the wire value is a numeric string...
+        let parse = |j: &str| serde_json::from_str::<EmptyStrGeneric<i64>>(j);
+        assert_eq!(parse(r#"{"v":""}"#).unwrap().v, None);
+        assert_eq!(parse(r#"{"v":null}"#).unwrap().v, None);
+        // ...but a bare JSON number is an error (must not panic)
+        assert!(parse(r#"{"v":12}"#).is_err());
+    }
+
+    #[test]
+    fn test_ok_or_none_swallows_errors() {
+        #[derive(Deserialize)]
+        struct Row {
+            #[serde(default, deserialize_with = "ok_or_none")]
+            v: Option<i64>,
+        }
+        // Bare number can't be read as a string, so it becomes None rather than erroring
+        assert_eq!(serde_json::from_str::<Row>(r#"{"v":12}"#).unwrap().v, None);
+        assert_eq!(serde_json::from_str::<Row>(r#"{"v":""}"#).unwrap().v, None);
+    }
+
+    #[test]
+    fn test_zero_date_as_option_null_and_empty() {
+        let parse = |j: &str| serde_json::from_str::<LegacyRowWithOptionDate>(j);
+        assert_eq!(
+            parse(r#"{"ID":"a","date_of_birth":null}"#)
+                .unwrap()
+                .date_of_birth,
+            None
+        );
+        assert_eq!(
+            parse(r#"{"ID":"a","date_of_birth":""}"#)
+                .unwrap()
+                .date_of_birth,
+            None
+        );
+        assert_eq!(parse(r#"{"ID":"a"}"#).unwrap().date_of_birth, None);
+        // Not a string
+        assert!(parse(r#"{"ID":"a","date_of_birth":20220101}"#).is_err());
+    }
+
+    #[test]
+    fn test_date_serialisers() {
+        let row = LegacyRowWithOptionDate {
+            id: "a".to_string(),
+            date_of_birth: NaiveDate::from_ymd_opt(2022, 1, 2),
+        };
+        assert_eq!(
+            serde_json::to_value(&row).unwrap()["date_of_birth"],
+            "2022-01-02T00:00:00"
+        );
+        let row = LegacyRowWithOptionDate {
+            id: "a".to_string(),
+            date_of_birth: None,
+        };
+        assert!(serde_json::to_value(&row).unwrap()["date_of_birth"].is_null());
+    }
+
+    #[test]
+    fn test_naive_time() {
+        #[derive(Deserialize)]
+        struct Row {
+            #[serde(deserialize_with = "naive_time")]
+            t: NaiveTime,
+        }
+        let parse = |j: &str| serde_json::from_str::<Row>(j).unwrap().t;
+        assert_eq!(
+            parse(r#"{"t":3661}"#),
+            NaiveTime::from_hms_opt(1, 1, 1).unwrap()
+        );
+        assert_eq!(
+            parse(r#"{"t":0}"#),
+            NaiveTime::from_hms_opt(0, 0, 0).unwrap()
+        );
+        // Invalid values fall back to midnight instead of failing/panicking
+        assert_eq!(
+            parse(r#"{"t":86400}"#),
+            NaiveTime::from_hms_opt(0, 0, 0).unwrap()
+        );
+        assert_eq!(
+            parse(r#"{"t":-5}"#),
+            NaiveTime::from_hms_opt(0, 0, 0).unwrap()
+        );
+        assert_eq!(
+            parse(r#"{"t":"abc"}"#),
+            NaiveTime::from_hms_opt(0, 0, 0).unwrap()
+        );
+    }
+
+    #[test]
+    fn test_empty_str_or_i32() {
+        #[derive(Deserialize)]
+        struct Row {
+            #[serde(deserialize_with = "empty_str_or_i32")]
+            n: i32,
+        }
+        let parse = |j: &str| serde_json::from_str::<Row>(j);
+        assert_eq!(parse(r#"{"n":7}"#).unwrap().n, 7);
+        assert_eq!(parse(r#"{"n":""}"#).unwrap().n, 0);
+        // Any string (not only empty) is 0 - numeric strings are NOT parsed
+        assert_eq!(parse(r#"{"n":"7"}"#).unwrap().n, 0);
+        assert!(parse(r#"{"n":null}"#).is_err());
+        assert!(parse(r#"{"n":true}"#).is_err());
+    }
+
+    #[test]
+    fn test_string_to_f64() {
+        #[derive(Deserialize)]
+        struct Row {
+            #[serde(deserialize_with = "string_to_f64")]
+            n: f64,
+        }
+        let parse = |j: &str| serde_json::from_str::<Row>(j);
+        assert_eq!(parse(r#"{"n":"1.5"}"#).unwrap().n, 1.5);
+        assert_eq!(parse(r#"{"n":""}"#).unwrap().n, 0.0);
+        assert_eq!(parse(r#"{"n":"abc"}"#).unwrap().n, 0.0);
+        // Bare numbers are an error, only strings are accepted
+        assert!(parse(r#"{"n":1.5}"#).is_err());
+    }
+
+    #[test]
+    fn test_zero_f64_as_none() {
+        #[derive(Deserialize)]
+        struct Row {
+            #[serde(deserialize_with = "zero_f64_as_none")]
+            n: Option<f64>,
+        }
+        let parse = |j: &str| serde_json::from_str::<Row>(j);
+        assert_eq!(parse(r#"{"n":2.5}"#).unwrap().n, Some(2.5));
+        assert_eq!(parse(r#"{"n":0}"#).unwrap().n, None);
+        assert_eq!(parse(r#"{"n":0.0}"#).unwrap().n, None);
+        assert_eq!(parse(r#"{"n":-1}"#).unwrap().n, Some(-1.0));
+        // Strings and null are errors
+        assert!(parse(r#"{"n":"2"}"#).is_err());
+        assert!(parse(r#"{"n":null}"#).is_err());
+    }
+
+    #[test]
+    fn test_date_time_helpers() {
+        let d = NaiveDate::from_ymd_opt(2022, 3, 4).unwrap();
+        assert_eq!(
+            date_and_time_to_datetime(d, 3661),
+            d.and_hms_opt(1, 1, 1).unwrap()
+        );
+        assert_eq!(date_from_date_time(&d.and_hms_opt(23, 59, 59).unwrap()), d);
+    }
 }
