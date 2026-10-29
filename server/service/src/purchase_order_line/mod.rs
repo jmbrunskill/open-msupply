@@ -2,6 +2,8 @@ use self::query::{
     get_purchase_order_line, get_purchase_order_lines, get_units_ordered_in_other_purchase_orders,
 };
 pub mod query;
+#[cfg(test)]
+pub(crate) mod test_helpers;
 use crate::{
     ListError, ListResult,
     purchase_order_line::{

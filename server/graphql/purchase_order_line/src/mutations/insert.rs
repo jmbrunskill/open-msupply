@@ -170,7 +170,8 @@ pub fn map_error(error: ServiceError) -> Result<InsertErrorInterface> {
         | ServiceError::IncorrectStoreId
         | ServiceError::OtherPartyDoesNotExist
         | ServiceError::OtherPartyNotAManufacturer
-        | ServiceError::ItemCannotBeOrdered => BadUserInput(formatted_error),
+        | ServiceError::ItemCannotBeOrdered
+        | ServiceError::ItemNotVisible => BadUserInput(formatted_error),
         ServiceError::DatabaseError(_) => InternalError(formatted_error),
     };
 

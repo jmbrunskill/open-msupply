@@ -26,6 +26,10 @@ mod delete {
         let context = service_provider
             .context(mock_store_a().id, mock_user_account_a().id)
             .unwrap();
+        crate::purchase_order_line::test_helpers::make_items_visible_in_store_a(
+            &context.connection,
+            &["item_a", "item_b"],
+        );
 
         // PurchaseOrderLineNotFound
         assert_eq!(
@@ -54,6 +58,10 @@ mod delete {
         let context = service_provider
             .context(mock_store_a().id, "user_id".to_string())
             .unwrap();
+        crate::purchase_order_line::test_helpers::make_items_visible_in_store_a(
+            &context.connection,
+            &["item_a", "item_b"],
+        );
         let service = service_provider.purchase_order_line_service;
 
         // Create a purchase order line
@@ -99,6 +107,10 @@ mod delete {
         let context = service_provider
             .context(mock_store_a().id, mock_user_account_a().id)
             .unwrap();
+        crate::purchase_order_line::test_helpers::make_items_visible_in_store_a(
+            &context.connection,
+            &["item_a", "item_b"],
+        );
         let service = &service_provider.purchase_order_line_service;
 
         service_provider
@@ -183,6 +195,10 @@ mod delete {
         let context = service_provider
             .context(mock_store_a().id, mock_user_account_a().id)
             .unwrap();
+        crate::purchase_order_line::test_helpers::make_items_visible_in_store_a(
+            &context.connection,
+            &["item_a", "item_b"],
+        );
         let service = &service_provider.purchase_order_line_service;
 
         service_provider

@@ -30,6 +30,7 @@ pub enum InsertPurchaseOrderLineError {
     DatabaseError(RepositoryError),
     CannotFindItemByCode(String),
     ItemCannotBeOrdered,
+    ItemNotVisible,
 }
 
 #[derive(PartialEq, Debug, Clone, Default)]

@@ -29,6 +29,10 @@ mod update {
         let context = service_provider
             .context(mock_store_a().id.clone(), "".to_string())
             .unwrap();
+        crate::purchase_order_line::test_helpers::make_items_visible_in_store_a(
+            &context.connection,
+            &["item_a", "item_b"],
+        );
         let service = service_provider.purchase_order_line_service;
         let purchase_order_service = service_provider.purchase_order_service;
         let mut user_permission;
@@ -302,6 +306,10 @@ mod update {
         let context = service_provider
             .context(mock_store_a().id.clone(), "".to_string())
             .unwrap();
+        crate::purchase_order_line::test_helpers::make_items_visible_in_store_a(
+            &context.connection,
+            &["item_a", "item_b"],
+        );
         let service = service_provider.purchase_order_line_service;
 
         // Create a purchase order line
@@ -367,6 +375,10 @@ mod update {
         let context = service_provider
             .context(mock_store_a().id.clone(), "".to_string())
             .unwrap();
+        crate::purchase_order_line::test_helpers::make_items_visible_in_store_a(
+            &context.connection,
+            &["item_a", "item_b", "item_d"],
+        );
         let service = service_provider.purchase_order_line_service;
         let repo = PurchaseOrderLineRowRepository::new(&context.connection);
         let line_total = || {

@@ -1,7 +1,8 @@
 #[cfg(test)]
 mod insert {
     use repository::{
-        ActivityLogRowRepository, ActivityLogType, PurchaseOrderLineRowRepository,
+        ActivityLogRowRepository, ActivityLogType, ItemRow, ItemRowRepository,
+        PurchaseOrderLineRowRepository,
         mock::{
             MockDataInserts, mock_item_a, mock_item_b, mock_name_a, mock_store_a,
             mock_user_account_a,
@@ -24,6 +25,10 @@ mod insert {
         let context = service_provider
             .context(mock_store_a().id, mock_user_account_a().id)
             .unwrap();
+        crate::purchase_order_line::test_helpers::make_items_visible_in_store_a(
+            &context.connection,
+            &["item_a", "item_b"],
+        );
         let service = service_provider.purchase_order_line_service;
 
         // Purchase Order Does Not Exist
@@ -67,6 +72,31 @@ mod insert {
             Err(InsertPurchaseOrderLineError::ItemDoesNotExist)
         );
 
+        // Item not visible in the store (not on any master list assigned to it),
+        // e.g. imported by id or code from a CSV (#10890)
+        ItemRowRepository::new(&context.connection)
+            .upsert_one(&ItemRow {
+                id: "hidden_item".to_string(),
+                code: "hidden_item_code".to_string(),
+                name: "Hidden item".to_string(),
+                ..Default::default()
+            })
+            .unwrap();
+        for item_id_or_code in ["hidden_item", "hidden_item_code"] {
+            assert_eq!(
+                service.insert_purchase_order_line(
+                    &context,
+                    InsertPurchaseOrderLineInput {
+                        id: "hidden_item_line".to_string(),
+                        purchase_order_id: "purchase_order_id".to_string(),
+                        item_id_or_code: item_id_or_code.to_string(),
+                        ..Default::default()
+                    }
+                ),
+                Err(InsertPurchaseOrderLineError::ItemNotVisible)
+            );
+        }
+
         // Purchase Order Line Already Exists
         service
             .insert_purchase_order_line(
@@ -103,6 +133,10 @@ mod insert {
         let context = service_provider
             .context(mock_store_a().id, mock_user_account_a().id)
             .unwrap();
+        crate::purchase_order_line::test_helpers::make_items_visible_in_store_a(
+            &context.connection,
+            &["item_a", "item_b"],
+        );
         let service = service_provider.purchase_order_line_service;
 
         // Create purchase orders
@@ -243,6 +277,10 @@ mod insert {
         let context = service_provider
             .context(mock_store_a().id, mock_user_account_a().id)
             .unwrap();
+        crate::purchase_order_line::test_helpers::make_items_visible_in_store_a(
+            &context.connection,
+            &["item_a", "item_b"],
+        );
         let service = service_provider.purchase_order_line_service;
 
         service_provider
