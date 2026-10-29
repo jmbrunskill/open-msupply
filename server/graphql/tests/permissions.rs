@@ -448,6 +448,23 @@ fn resource_mapping_query_test_data() -> Vec<TestData> {
             },
         },
         TestData {
+            name: "customFields",
+            query: r#"query Query {
+              customFields {
+                ... on CustomFieldConnector {
+                  nodes {
+                    id
+                  }
+                }
+              }
+            }"#,
+            expected: ResourceAccessRequest {
+                resource: Resource::NoPermissionRequired,
+                store_id: None,
+                require_central_standalone: false,
+            },
+        },
+        TestData {
             name: "stores",
             query: r#"query Query {
                 stores {
