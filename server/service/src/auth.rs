@@ -99,6 +99,7 @@ pub enum Resource {
     Report,
     ReportDev,
     QueryLog,
+    QueryRecordLog,
     // view/edit server setting
     ServerAdmin,
     // clinician
@@ -593,6 +594,9 @@ fn all_permissions() -> HashMap<Resource, PermissionDSL> {
             PermissionDSL::HasPermission(PermissionType::LogQuery),
         ]),
     );
+
+    // Activity log of a specific record, e.g. the Log tab on an invoice
+    map.insert(Resource::QueryRecordLog, PermissionDSL::HasStoreAccess);
 
     map.insert(Resource::QueryClinician, PermissionDSL::HasStoreAccess);
 
@@ -1824,5 +1828,43 @@ mod permission_validation_test {
                 )
                 .is_err()
         );
+    }
+    #[actix_rt::test]
+    async fn test_record_log_does_not_need_log_query_permission() {
+        let store_access = vec![UserPermissionRow {
+            id: "dummy_id".to_string(),
+            user_id: "user".to_string(),
+            permission: PermissionType::StoreAccess,
+            store_id: Some("store".to_string()),
+            context_id: None,
+        }];
+        let permissions = super::all_permissions();
+        let check = |resource: Resource, user_permissions: &[UserPermissionRow]| {
+            validate_resource_permissions(
+                "user",
+                user_permissions,
+                &ResourceAccessRequest {
+                    resource: resource.clone(),
+                    store_id: Some("store".to_string()),
+                    require_central_standalone: false,
+                },
+                permissions.get(&resource).unwrap(),
+                &mut Vec::new(),
+            )
+        };
+
+        // Logs of a specific record (detail view Log tab): store access is enough
+        assert!(check(Resource::QueryRecordLog, &store_access).is_ok());
+        // Browsing all logs still needs LOG_QUERY
+        assert!(check(Resource::QueryLog, &store_access).is_err());
+        let mut with_log_query = store_access.clone();
+        with_log_query.push(UserPermissionRow {
+            id: "dummy_id_2".to_string(),
+            user_id: "user".to_string(),
+            permission: PermissionType::LogQuery,
+            store_id: Some("store".to_string()),
+            context_id: None,
+        });
+        assert!(check(Resource::QueryLog, &with_log_query).is_ok());
     }
 }
