@@ -71,20 +71,19 @@ const FILTERS: Filter<OutboundFilter>[] = constructFilters<OutboundFilter>({
       />
     ),
   },
-  invoiceNumber: {
+  invoiceNumberStartsWith: {
     label: () => t('label.invoice-number'),
     render: props => (
       <FilterTextInput
         label={t('label.invoice-number')}
         testId={props.testId}
         placeholder={t('placeholder.search')}
-        value={props.filter().invoiceNumber?.equalTo?.toString() ?? ''}
-        onInput={value => {
-          const n = Number.parseInt(value, 10);
+        value={props.filter().invoiceNumberStartsWith ?? ''}
+        onInput={value =>
           props.setPartialFilter({
-            invoiceNumber: Number.isNaN(n) ? null : { equalTo: n },
-          });
-        }}
+            invoiceNumberStartsWith: value.trim() || null,
+          })
+        }
       />
     ),
   },
@@ -138,6 +137,7 @@ const FILTERS: Filter<OutboundFilter>[] = constructFilters<OutboundFilter>({
   type: null,
   // The tablet simplified layout's single search box — not offered on the
   // standard layout this build targets (ui-surface § cross-cutting).
+  invoiceNumber: null,
   invoiceNumberOrStatus: null,
   // Identity / relational / programmatic filters.
   id: null,

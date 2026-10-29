@@ -131,17 +131,17 @@ const FILTERS: Filter<InboundListFilter>[] =
         />
       ),
     },
-    invoiceNumber: {
+    invoiceNumberStartsWith: {
       label: () => t('label.invoice-number'),
       render: props => (
-        <FilterNumberInput
+        <FilterTextInput
           label={t('label.invoice-number')}
           testId={props.testId}
           placeholder={t('placeholder.search')}
-          value={props.filter().invoiceNumber?.equalTo ?? undefined}
-          onChange={value =>
+          value={props.filter().invoiceNumberStartsWith ?? ''}
+          onInput={value =>
             props.setPartialFilter({
-              invoiceNumber: value === undefined ? null : { equalTo: value },
+              invoiceNumberStartsWith: value.trim() || null,
             })
           }
         />
@@ -261,6 +261,7 @@ const FILTERS: Filter<InboundListFilter>[] =
     // never a user filter.
     id: null,
     nameId: null,
+    invoiceNumber: null,
     invoiceNumberOrStatus: null,
     otherPartyId: null,
     storeId: null,

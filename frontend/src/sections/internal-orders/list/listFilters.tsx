@@ -1,7 +1,6 @@
 import { t } from '../../../intl';
 import {
   FilterTextInput,
-  FilterNumberInput,
   FilterMultiSelect,
   FilterDateRange,
   constructFilters,
@@ -54,19 +53,18 @@ const FILTERS: Filter<InternalOrderFilter>[] =
         />
       ),
     },
-    // Requisition (order) number — equals → EqualFilterBigNumberInput.equalTo.
-    requisitionNumber: {
+    // Requisition number — starts-with → requisitionNumberStartsWith.
+    requisitionNumberStartsWith: {
       label: () => t('label.requisition-number'),
       render: props => (
-        <FilterNumberInput
+        <FilterTextInput
           label={t('label.requisition-number')}
           testId={props.testId}
           placeholder={t('placeholder.search')}
-          value={props.filter().requisitionNumber?.equalTo ?? undefined}
-          onChange={value =>
+          value={props.filter().requisitionNumberStartsWith ?? ''}
+          onInput={value =>
             props.setPartialFilter({
-              requisitionNumber:
-                value === undefined ? null : { equalTo: value },
+              requisitionNumberStartsWith: value.trim() || null,
             })
           }
         />
@@ -117,6 +115,7 @@ const FILTERS: Filter<InternalOrderFilter>[] =
     // `type` is pinned to REQUEST at query-build time (contract › "Internal
     // orders only"), never a user control.
     type: null,
+    requisitionNumber: null,
     // Identity / relational / programmatic filters.
     id: null,
     userId: null,

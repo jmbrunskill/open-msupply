@@ -157,6 +157,7 @@ fn create_filtered_query(
         id,
         user_id,
         requisition_number,
+        requisition_number_starts_with,
         r#type,
         status,
         created_datetime,
@@ -188,6 +189,22 @@ fn create_filtered_query(
             requisition::linked_requisition_id
         );
         apply_equal_filter!(query, requisition_number, requisition::requisition_number);
+        // Prefix match on the number written in decimal. Digits only, so no LIKE
+        // wildcards can get in; any other non-blank input matches nothing.
+        if let Some(prefix) = requisition_number_starts_with {
+            let prefix = prefix.trim();
+            if prefix.chars().all(|c| c.is_ascii_digit()) {
+                if !prefix.is_empty() {
+                    query = query.filter(
+                        requisition::requisition_number
+                            .cast::<diesel::sql_types::Text>()
+                            .like(format!("{prefix}%")),
+                    );
+                }
+            } else {
+                query = query.filter(diesel::dsl::sql::<diesel::sql_types::Bool>("1 = 0"));
+            }
+        }
         apply_equal_filter!(query, r#type, requisition::type_);
         apply_equal_filter!(query, status, requisition::status);
         apply_equal_filter!(query, user_id, requisition::user_id);
@@ -271,5 +288,54 @@ fn to_domain(
         store_row,
         program,
         period: period_row,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::RequisitionRepository;
+    use crate::{RequisitionFilter, mock::MockDataInserts, test_db};
+
+    #[actix_rt::test]
+    async fn requisition_number_starts_with_filter() {
+        let (_, connection, _, _) = test_db::setup_all(
+            "requisition_number_starts_with_filter",
+            MockDataInserts::all(),
+        )
+        .await;
+        let repo = RequisitionRepository::new(&connection);
+        let numbers = |f: RequisitionFilter| -> Vec<i64> {
+            let mut r: Vec<i64> = repo
+                .query_by_filter(f)
+                .unwrap()
+                .iter()
+                .map(|r| r.requisition_row.requisition_number)
+                .collect();
+            r.sort();
+            r
+        };
+        let all = numbers(RequisitionFilter::new());
+        let prefix = all
+            .iter()
+            .map(|n| n.to_string())
+            .find(|n| n.len() > 1)
+            .map(|n| n[..1].to_string())
+            .expect("mock data has a multi digit requisition number");
+        let with = |p: &str| {
+            let mut f = RequisitionFilter::new();
+            f.requisition_number_starts_with = Some(p.to_string());
+            numbers(f)
+        };
+        let mut expected: Vec<i64> = all
+            .iter()
+            .copied()
+            .filter(|n| n.to_string().starts_with(&prefix))
+            .collect();
+        expected.sort();
+        assert!(expected.iter().any(|n| n.to_string() != prefix));
+        assert_eq!(with(&prefix), expected);
+        assert!(with("x").is_empty());
+        assert!(with("1%").is_empty());
+        assert_eq!(with("").len(), all.len());
     }
 }

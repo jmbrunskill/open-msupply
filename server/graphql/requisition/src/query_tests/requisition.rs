@@ -174,6 +174,7 @@ mod graphql {
                 id,
                 user_id,
                 requisition_number,
+                requisition_number_starts_with: _,
                 r#type,
                 status,
                 created_datetime,
