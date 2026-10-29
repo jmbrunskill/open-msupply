@@ -10,3 +10,6 @@ mod query_log;
 
 #[cfg(test)]
 mod insert_log;
+
+#[cfg(test)]
+mod delete_log_reason;

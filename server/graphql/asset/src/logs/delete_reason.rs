@@ -67,7 +67,9 @@ fn map_error(error: ServiceError) -> Result<DeleteAssetLogReasonErrorInterface> 
 
     let graphql_error = match error {
         // Standard Graphql Errors
-        ServiceError::ReasonDoesNotExist => BadUserInput(formatted_error),
+        ServiceError::ReasonDoesNotExist | ServiceError::ReasonInUse => {
+            BadUserInput(formatted_error)
+        }
         ServiceError::DatabaseError(_) => InternalError(formatted_error),
     };
 

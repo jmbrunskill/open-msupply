@@ -1,12 +1,16 @@
 use crate::{activity_log::activity_log_entry, service_provider::ServiceContext};
 use repository::asset_log_reason_row::AssetLogReasonRowRepository;
-use repository::{ActivityLogType, RepositoryError, StorageConnection};
+use repository::{
+    ActivityLogType, EqualFilter, RepositoryError, StorageConnection,
+    assets::asset_log::{AssetLogFilter, AssetLogRepository},
+};
 
 use super::validate::check_asset_log_reason_exists;
 
 #[derive(PartialEq, Debug)]
 pub enum DeleteAssetLogReasonError {
     ReasonDoesNotExist,
+    ReasonInUse,
     DatabaseError(RepositoryError),
 }
 impl From<RepositoryError> for DeleteAssetLogReasonError {
@@ -43,8 +47,15 @@ pub fn validate(
     connection: &StorageConnection,
     reason_id: &str,
 ) -> Result<(), DeleteAssetLogReasonError> {
-    match check_asset_log_reason_exists(reason_id, connection)? {
-        Some(_reason_row) => Ok(()),
-        None => Err(DeleteAssetLogReasonError::ReasonDoesNotExist),
+    check_asset_log_reason_exists(reason_id, connection)?
+        .ok_or(DeleteAssetLogReasonError::ReasonDoesNotExist)?;
+
+    // Deleting a reason that logs refer to would blank it out of those logs
+    let in_use = AssetLogRepository::new(connection).count(Some(
+        AssetLogFilter::new().reason_id(EqualFilter::equal_to(reason_id.to_string())),
+    ))?;
+    if in_use > 0 {
+        return Err(DeleteAssetLogReasonError::ReasonInUse);
     }
+    Ok(())
 }
