@@ -256,6 +256,14 @@ pub fn create_logs_for_imported_mapping_dates(
                 key: key.to_string(),
                 value: trimmed.to_string(),
             })?;
+        // The UI refuses future mapping dates (see LogDatetimeInFuture), so an
+        // imported one must not slip through here.
+        if parsed > Utc::now().date_naive() {
+            return Err(InsertAssetError::MappingDateInFuture {
+                key: key.to_string(),
+                value: trimmed.to_string(),
+            });
+        }
         dates.push(parsed);
     }
     dates.sort();
