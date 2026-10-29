@@ -6,6 +6,7 @@ query ItemUsage($storeId: String!, $itemCode: String, $itemName: String) {
       name: { like: $itemName }
       isVisibleOrOnHand: true
       isActive: true
+      type: { equalTo: STOCK }
     }
   ) {
     ... on ItemConnector {
