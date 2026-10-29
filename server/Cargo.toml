@@ -70,6 +70,9 @@ new_ret_no_self = "allow"
 enum_variant_names = "allow"
 # TODO: Will need frontend changes too. Will be nice for readability.
 too_many_arguments = "allow"
+# Unwraps panic; prefer returning errors. Tests are exempt (see clippy.toml).
+unwrap_used = "warn"
+expect_used = "warn"
 
 [workspace.package]
 edition = "2024"
