@@ -32,6 +32,7 @@ allow_tables_to_appear_in_same_query!(category, item);
     serde::Deserialize,
 )]
 #[diesel(table_name = category)]
+#[diesel(treat_none_as_null = true)]
 pub struct CategoryRow {
     pub id: String,
     pub name: String,

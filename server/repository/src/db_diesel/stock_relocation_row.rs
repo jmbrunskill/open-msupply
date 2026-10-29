@@ -48,6 +48,7 @@ impl StockRelocationStatus {
     Clone, Queryable, Insertable, AsChangeset, Debug, PartialEq, Default, Serialize, Deserialize,
 )]
 #[diesel(table_name = stock_relocation)]
+#[diesel(treat_none_as_null = true)]
 pub struct StockRelocationRow {
     pub id: String,
     pub store_id: String,

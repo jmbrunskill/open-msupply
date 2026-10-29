@@ -22,6 +22,7 @@ table! {
     Clone, Queryable, Insertable, AsChangeset, Debug, PartialEq, Default, Serialize, Deserialize,
 )]
 #[diesel(table_name = packaging_variant)]
+#[diesel(treat_none_as_null = true)]
 pub struct PackagingVariantRow {
     pub id: String,
     pub name: String,

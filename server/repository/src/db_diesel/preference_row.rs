@@ -21,6 +21,7 @@ table! {
     Clone, Insertable, Queryable, Debug, PartialEq, AsChangeset, Eq, Serialize, Deserialize, Default,
 )]
 #[diesel(table_name = preference)]
+#[diesel(treat_none_as_null = true)]
 pub struct PreferenceRow {
     pub id: String,
     pub key: String,

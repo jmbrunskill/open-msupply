@@ -20,6 +20,7 @@ table! {
     Clone, Insertable, Queryable, Debug, PartialEq, Eq, AsChangeset, Serialize, Deserialize, Default,
 )]
 #[diesel(table_name = help_document)]
+#[diesel(treat_none_as_null = true)]
 pub struct HelpDocumentRow {
     pub id: String,
     pub title: String,

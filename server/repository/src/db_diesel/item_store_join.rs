@@ -41,6 +41,7 @@ allow_tables_to_appear_in_same_query!(item_store_join, item);
     serde::Deserialize,
 )]
 #[diesel(table_name = item_store_join)]
+#[diesel(treat_none_as_null = true)]
 pub struct ItemStoreJoinRow {
     pub id: String,
     pub store_id: String,

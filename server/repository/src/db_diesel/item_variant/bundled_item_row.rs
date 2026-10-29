@@ -21,6 +21,7 @@ table! {
     Clone, Queryable, Insertable, AsChangeset, Debug, PartialEq, Default, Serialize, Deserialize,
 )]
 #[diesel(table_name = bundled_item)]
+#[diesel(treat_none_as_null = true)]
 pub struct BundledItemRow {
     pub id: String,
     pub principal_item_variant_id: String,

@@ -75,6 +75,7 @@ pub enum DocumentStatus {
 )]
 #[cfg_attr(test, derive(Default))]
 #[diesel(table_name = document)]
+#[diesel(treat_none_as_null = true)]
 pub struct DocumentRow {
     /// The document data hash
     pub id: String,

@@ -39,6 +39,7 @@ table! {
     serde::Deserialize,
 )]
 #[diesel(table_name = clinician)]
+#[diesel(treat_none_as_null = true)]
 pub struct ClinicianRow {
     pub id: String,
     pub code: String,
@@ -231,5 +232,32 @@ mod test {
         };
         let result = repo.upsert_one(&clinician);
         assert!(result.is_ok());
+    }
+
+    /// Upserting `None` must clear an existing value (#247)
+    #[actix_rt::test]
+    async fn upsert_can_set_nullable_fields_to_null() {
+        let (_, connection, _, _) = setup_all(
+            "clinician_upsert_can_set_nullable_fields_to_null",
+            MockDataInserts::none().stores(),
+        )
+        .await;
+        let repo = ClinicianRowRepository::new(&connection);
+
+        let mut clinician = ClinicianRow {
+            id: "nullable".to_string(),
+            first_name: Some("First".to_string()),
+            phone: Some("123".to_string()),
+            email: Some("a@b.c".to_string()),
+            ..Default::default()
+        };
+        repo.upsert_one(&clinician).unwrap();
+
+        clinician.first_name = None;
+        clinician.phone = None;
+        clinician.email = None;
+        repo.upsert_one(&clinician).unwrap();
+
+        assert_eq!(repo.find_one_by_id("nullable").unwrap(), Some(clinician));
     }
 }

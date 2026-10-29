@@ -46,6 +46,7 @@ table! {
     serde::Deserialize,
 )]
 #[diesel(table_name = indicator_line)]
+#[diesel(treat_none_as_null = true)]
 pub struct IndicatorLineRow {
     pub id: String,
     pub program_indicator_id: String,

@@ -54,6 +54,7 @@ pub enum StocktakeStatus {
     serde::Deserialize,
 )]
 #[diesel(table_name = stocktake)]
+#[diesel(treat_none_as_null = true)]
 pub struct StocktakeRow {
     pub id: String,
     pub store_id: String,

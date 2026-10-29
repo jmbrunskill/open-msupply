@@ -42,6 +42,7 @@ allow_tables_to_appear_in_same_query!(item_category_join, item);
     serde::Deserialize,
 )]
 #[diesel(table_name = item_category_join)]
+#[diesel(treat_none_as_null = true)]
 pub struct ItemCategoryJoinRow {
     pub id: String,
     pub category_id: String,

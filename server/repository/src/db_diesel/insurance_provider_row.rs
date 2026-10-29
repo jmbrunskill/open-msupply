@@ -18,6 +18,7 @@ table! {
     Clone, Insertable, Queryable, Debug, PartialEq, Eq, AsChangeset, Default, Serialize, Deserialize,
 )]
 #[diesel(table_name = insurance_provider)]
+#[diesel(treat_none_as_null = true)]
 pub struct InsuranceProviderRow {
     pub id: String,
     pub provider_name: String,

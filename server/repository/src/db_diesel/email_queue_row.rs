@@ -36,6 +36,7 @@ pub enum EmailQueueStatus {
     Clone, Queryable, Insertable, Identifiable, Debug, PartialEq, Eq, AsChangeset, Default,
 )]
 #[diesel(table_name = email_queue)]
+#[diesel(treat_none_as_null = true)]
 pub struct EmailQueueRow {
     pub id: String,
     pub to_address: String,
