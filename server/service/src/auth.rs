@@ -978,6 +978,13 @@ pub struct ValidatedUser {
 }
 
 impl<'a> ValidatedUser {
+    pub fn new(user_id: String, capabilities: Vec<String>) -> Self {
+        ValidatedUser {
+            user_id,
+            capabilities,
+        }
+    }
+
     pub fn capabilities(&'a self) -> &'a Vec<String> {
         &self.capabilities
     }

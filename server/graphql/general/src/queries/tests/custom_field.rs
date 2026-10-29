@@ -12,6 +12,8 @@ mod graphql {
 
     use service::{
         ListError, ListResult,
+        auth::{AuthError, AuthServiceTrait, ResourceAccessRequest, ValidatedUser},
+        auth_data::AuthData,
         custom_field::CustomFieldServiceTrait,
         service_provider::{ServiceContext, ServiceProvider},
     };
@@ -42,12 +44,28 @@ mod graphql {
         }
     }
 
+    struct AllowAll;
+
+    impl AuthServiceTrait for AllowAll {
+        fn validate(
+            &self,
+            _: &ServiceContext,
+            _: &AuthData,
+            _: &Option<String>,
+            _: &Option<String>,
+            _: &ResourceAccessRequest,
+        ) -> Result<ValidatedUser, AuthError> {
+            Ok(ValidatedUser::new("test".to_string(), Vec::new()))
+        }
+    }
+
     fn service_provider(
         custom_field_service: TestService,
         connection_manager: &StorageConnectionManager,
     ) -> ServiceProvider {
         let mut service_provider = ServiceProvider::new(connection_manager.clone());
         service_provider.custom_field_service = Box::new(custom_field_service);
+        service_provider.validation_service = Box::new(AllowAll);
         service_provider
     }
 

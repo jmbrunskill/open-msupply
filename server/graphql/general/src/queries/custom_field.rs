@@ -1,9 +1,10 @@
 use async_graphql::*;
 use graphql_core::ContextExt;
 use graphql_core::generic_filters::EqualFilterStringInput;
-use graphql_core::standard_graphql_error::StandardGraphqlError;
+use graphql_core::standard_graphql_error::{StandardGraphqlError, validate_auth};
 use graphql_types::types::{CustomFieldConnector, CustomFieldsResponse};
 use repository::{CustomFieldFilter, EqualFilter};
+use service::auth::{Resource, ResourceAccessRequest};
 
 #[derive(InputObject, Clone)]
 pub struct CustomFieldFilterInput {
@@ -32,6 +33,15 @@ pub fn custom_fields(
     ctx: &Context<'_>,
     filter: Option<CustomFieldFilterInput>,
 ) -> Result<CustomFieldsResponse> {
+    validate_auth(
+        ctx,
+        &ResourceAccessRequest {
+            resource: Resource::NoPermissionRequired,
+            store_id: None,
+            require_central_standalone: false,
+        },
+    )?;
+
     let service_provider = ctx.service_provider();
     let service_context = service_provider.basic_context()?;
 
