@@ -324,6 +324,17 @@ export const EquipmentUploadTab = ({
         status =>
           parseStatusFromString(status, t) ?? AssetLogStatusNodeType.Functioning
       );
+      // A blank status defaults to Functioning, but a value that doesn't match
+      // a known status (e.g. a typo) shouldn't be silently imported as one.
+      const rawStatus = (row as ParsedAsset)[t('label.functional-status')];
+      if (rawStatus?.trim() && !parseStatusFromString(rawStatus, t)) {
+        rowErrors.push(
+          t('error.invalid-field-value', {
+            value: rawStatus,
+            field: t('label.functional-status'),
+          })
+        );
+      }
       addCell('needsReplacement', 'label.needs-replacement', isTruthyString);
       processProperties(properties ?? [], row, importRow, rowErrors, t);
       importRow.errorMessage = rowErrors.join(',');
