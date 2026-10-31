@@ -482,6 +482,10 @@ const StocktakeLineEditContent = (
   // for the row to attach, so no load gate is needed here.
   const batchFields = createFocusTargets();
 
+  // Each batch row's Batch (name) field — where the placeholder batch added for
+  // an item with no lines lands the cursor (#6744).
+  const batchNameFields = createFocusTargets();
+
   // Each batch row's reason picker, addressed the same way — where a save the
   // server refused for a missing reason lands (OMS-REG-INV-03.88). Focusing
   // the picker opens its option list (the Combobox opens on focus), so the
@@ -675,9 +679,17 @@ const StocktakeLineEditContent = (
       existing.length === 0
     );
     setDraft(reconcile(seeded, { key: 'id' }));
-    // Focus the requested batch, else the first row — the focus effect runs
-    // when loadingLines flips false below.
-    batchFields.focus(focusLineId ?? seeded[0]?.id ?? '');
+    if (seeded.length === 0) {
+      // An item with no stock and no lines would otherwise open on an empty
+      // table, needing an "Add batch" click before anything can be entered:
+      // start it with a blank batch, cursor in Batch (#6744). The user can
+      // remove the row, or pick another item, as with any other batch.
+      addBatch('batch');
+    } else {
+      // Focus the requested batch, else the first row — the focus effect runs
+      // when loadingLines flips false below.
+      batchFields.focus(focusLineId ?? seeded[0]?.id ?? '');
+    }
     setLoadingLines(false);
   };
 
@@ -827,7 +839,7 @@ const StocktakeLineEditContent = (
     disabled: noItemYet,
   });
 
-  const addBatch = () => {
+  const addBatch = (focus: 'count' | 'batch' = 'count') => {
     const item = currentItem();
     if (!item) return;
     const id = generateUUID();
@@ -876,7 +888,7 @@ const StocktakeLineEditContent = (
         })
       )
     );
-    batchFields.focus(id);
+    (focus === 'batch' ? batchNameFields : batchFields).focus(id);
   };
 
   // Soft-delete a row (isNew splices out; existing flagged deleted → sent as a
@@ -1149,6 +1161,7 @@ const StocktakeLineEditContent = (
         const line = info.row.original;
         return (
           <TextField
+            ref={batchNameFields.ref(line.id)}
             label={t('label.batch')}
             hideLabel
             size="small"
@@ -1976,7 +1989,7 @@ const StocktakeLineEditContent = (
             <Button
               icon={<PlusCircleIcon />}
               data-testid="add-batch-button"
-              onClick={addBatch}
+              onClick={() => addBatch()}
             >
               {/* Label matches inbound's exactly — no inline "(+)". The `+`
                   binding still works (createAction above); it is simply not
