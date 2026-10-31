@@ -9439,6 +9439,7 @@ enum SyncErrorVariant {
 	INTEGRATION_ERROR
 	V7_UPGRADE_FAILED
 	SYNC_API_PAUSED
+	REQUEST_TIMEOUT
 }
 
 enum SyncErrorVariantV7 {

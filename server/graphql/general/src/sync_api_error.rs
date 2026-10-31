@@ -36,6 +36,7 @@ pub enum Variant {
     IntegrationError,
     V7UpgradeFailed,
     SyncApiPaused,
+    RequestTimeout,
 }
 
 impl SyncErrorNode {
@@ -68,6 +69,10 @@ impl SyncErrorNode {
     }
 
     pub fn from_sync_api_error(error: &SyncApiError) -> Self {
+        if error.is_timeout() {
+            return Self::from_error_variant(Variant::RequestTimeout, error);
+        }
+
         let sync_v5_error_code = match &error.source {
             SyncApiErrorVariantV5::ParsedError { source, .. } => &source.code,
             SyncApiErrorVariantV5::ConnectionError { .. } => {
@@ -113,6 +118,7 @@ impl SyncErrorNode {
             from::IntegrationError => to::IntegrationError,
             from::V7UpgradeFailed => to::V7UpgradeFailed,
             from::SyncApiPaused => to::SyncApiPaused,
+            from::RequestTimeout => to::RequestTimeout,
         };
 
         Self::from_variant(variant, message)

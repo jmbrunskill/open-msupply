@@ -148,6 +148,25 @@ pub enum SyncApiErrorVariantV6 {
     Other(#[from] anyhow::Error),
 }
 
+impl SyncApiErrorVariantV6 {
+    /// The request (or reading its response) hit the client-side timeout. A timeout can
+    /// surface as any of these variants, depending on whether it fired while connecting,
+    /// waiting for headers or reading the body.
+    pub fn is_timeout(&self) -> bool {
+        match self {
+            SyncApiErrorVariantV6::ConnectionError(error)
+            | SyncApiErrorVariantV6::ParsingResponseError(
+                ParsingResponseError::ConnectionDropped(error)
+                | ParsingResponseError::CannotGetTextResponse(error),
+            ) => error.is_timeout(),
+            SyncApiErrorVariantV6::Other(error) => error
+                .downcast_ref::<reqwest::Error>()
+                .is_some_and(|error| error.is_timeout()),
+            _ => false,
+        }
+    }
+}
+
 impl SyncApiErrorV6 {
     /// The connection dropped part-way through reading the response body. Mirrors
     /// `SyncApiError::is_dropped_response_body` for sync v5.

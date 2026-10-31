@@ -24,6 +24,7 @@ pub enum SyncApiErrorCode {
     V6ApiVersionIncompatible,
     V7UpgradeFailed,
     SyncApiPaused,
+    RequestTimeout,
 }
 
 table! {

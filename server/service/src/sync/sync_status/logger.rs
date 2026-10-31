@@ -441,6 +441,14 @@ impl SyncLogError {
     }
 
     fn from_sync_api_error(variant: SyncApiErrorVariant, sync_error: &SyncError) -> Self {
+        let is_timeout = match &variant {
+            SyncApiErrorVariant::V5(variant) => variant.is_timeout(),
+            SyncApiErrorVariant::V6(variant) => variant.is_timeout(),
+        };
+        if is_timeout {
+            return Self::new(SyncApiErrorCode::RequestTimeout, sync_error);
+        }
+
         let sync_v5_error_code = match &variant {
             // V5 parsing error, pull out error code
             SyncApiErrorVariant::V5(SyncApiErrorVariantV5::ParsedError { source, .. })
@@ -520,6 +528,52 @@ mod test {
     use serde_json::json;
     use url::ParseError;
     use util::format_error;
+
+    /// A real client-side timeout: a server that accepts the connection but never answers.
+    async fn timeout_error() -> reqwest::Error {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let url = format!("http://{}", listener.local_addr().unwrap());
+        let error = Client::builder()
+            .timeout(std::time::Duration::from_millis(100))
+            .build()
+            .unwrap()
+            .get(url)
+            .send()
+            .await
+            .unwrap_err();
+        assert!(error.is_timeout());
+        error
+    }
+
+    #[actix_rt::test]
+    async fn sync_log_error_request_timeout() {
+        // v5: timeout while waiting for the response (surfaces as `Other`)
+        let sync_error = SyncError::CentralPullError(CentralPullError::SyncApiError(
+            SyncApiError::new_test(SyncApiErrorVariantV5::Other(timeout_error().await.into())),
+        ));
+        let sync_log_error = SyncLogError::from_sync_error(&sync_error);
+        assert_eq!(sync_log_error.code, Some(SyncApiErrorCode::RequestTimeout));
+
+        // v5: timeout while reading the body
+        let sync_error = SyncError::RemotePullError(RemotePullError::SyncApiError(
+            SyncApiError::new_test(SyncApiErrorVariantV5::ResponseParsingError(
+                timeout_error().await.into(),
+            )),
+        ));
+        let sync_log_error = SyncLogError::from_sync_error(&sync_error);
+        assert_eq!(sync_log_error.code, Some(SyncApiErrorCode::RequestTimeout));
+
+        // v6
+        let sync_error = SyncError::RemotePushErrorV6(RemotePushErrorV6::SyncApiError(
+            SyncApiErrorV6 {
+                source: SyncApiErrorVariantV6::ConnectionError(timeout_error().await),
+                url: Url::parse("http://localhost").unwrap(),
+                route: "push".to_string(),
+            },
+        ));
+        let sync_log_error = SyncLogError::from_sync_error(&sync_error);
+        assert_eq!(sync_log_error.code, Some(SyncApiErrorCode::RequestTimeout));
+    }
 
     #[actix_rt::test]
     async fn sync_log_error_from_sync_error() {
