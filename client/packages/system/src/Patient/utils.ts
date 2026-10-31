@@ -56,16 +56,28 @@ export const filterByNameAndCode = (
     RegexUtils.matchObjectProperties(state.inputValue, option, ['name', 'code'])
   );
 
+// Program names (document registry) of the patient's enrolments, e.g. "HIV; TB"
+const programEnrolmentNames = (patient: PatientRowFragment) => {
+  const enrolments = patient.programEnrolments;
+  if (enrolments?.__typename !== 'ProgramEnrolmentConnector') return '';
+  return enrolments.nodes
+    .map(node => node.document.documentRegistry?.name)
+    .filter(Boolean)
+    .join('; ');
+};
+
 export const patientsToCsv = (
   invoices: PatientRowFragment[],
   t: TypedTFunction<LocaleKey>
 ) => {
   const fields: string[] = [
-    t('label.code'),
+    t('label.patient-id'),
     t('label.first-name'),
     t('label.last-name'),
     t('label.gender'),
     t('label.date-of-birth'),
+    t('label.next-of-kin'),
+    t('label.program-enrolments'),
     t('label.deceased'),
   ];
 
@@ -75,6 +87,8 @@ export const patientsToCsv = (
     node.lastName,
     node.gender ? t(getGenderTranslationKey(node.gender)) : '',
     Formatter.csvDateString(node.dateOfBirth),
+    node.nextOfKinName ?? '',
+    programEnrolmentNames(node),
     node.isDeceased,
   ]);
   return Formatter.csv({ fields, data });
