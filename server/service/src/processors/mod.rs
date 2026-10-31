@@ -21,6 +21,7 @@ use pause::processors_paused_or_log;
 #[allow(dead_code, unused_imports)]
 mod assign_prescription_number;
 mod assign_requisition_number;
+mod cancelled_datetime;
 mod contact_form;
 mod general_processor;
 mod load_plugin;
@@ -187,6 +188,7 @@ impl ProcessorsTrigger {
         self.trigger_processor(ProcessorType::AssignRequisitionNumber);
         self.trigger_processor(ProcessorType::AssignPrescriptionNumber);
         self.trigger_processor(ProcessorType::PrescriptionRequestStatus);
+        self.trigger_processor(ProcessorType::CancelledDatetime);
         self.trigger_processor(ProcessorType::Plugins);
         self.trigger_processor(ProcessorType::RequisitionAutoFinalise);
         self.trigger_processor(ProcessorType::MergeSyncMessage);
