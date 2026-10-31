@@ -38,6 +38,7 @@ pub enum KeyType {
     AssignRequisitionNumberProcessorCursor,
     AssignPrescriptionNumberProcessorCursor,
     PrescriptionRequestStatusProcessorCursor,
+    CancelledDatetimeProcessorCursor,
     RequisitionAutoFinaliseProcessorCursor,
     SupportUploadFilesProcessorCursor,
     MergeSyncMessageProcessorCursor,

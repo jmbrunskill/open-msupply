@@ -2,11 +2,13 @@ use super::{Migration, MigrationFragment, version::Version};
 use crate::StorageConnection;
 
 mod add_campaign_id_to_invoice;
+mod add_cancelled_datetime_processor_cursor_pg_enum;
 mod add_code_to_location_type;
 mod add_line_total_to_purchase_order_line;
 mod add_not_installed_status_to_asset_status_enum;
 mod add_uploader_to_sync_file_reference;
 mod prescription_request_occupation_prominent;
+mod seed_cancelled_datetime_processor_cursor;
 
 pub(crate) struct V3_04_00;
 
@@ -27,6 +29,8 @@ impl Migration for V3_04_00 {
             Box::new(add_uploader_to_sync_file_reference::Migrate),
             Box::new(prescription_request_occupation_prominent::Migrate),
             Box::new(add_campaign_id_to_invoice::Migrate),
+            Box::new(add_cancelled_datetime_processor_cursor_pg_enum::Migrate),
+            Box::new(seed_cancelled_datetime_processor_cursor::Migrate),
         ]
     }
 }

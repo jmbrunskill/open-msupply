@@ -20,7 +20,8 @@ use crate::{
 };
 
 use super::{
-    assign_requisition_number::AssignRequisitionNumber, contact_form::QueueContactEmailProcessor,
+    assign_requisition_number::AssignRequisitionNumber,
+    cancelled_datetime::CancelledDatetimeProcessor, contact_form::QueueContactEmailProcessor,
     load_plugin::LoadPlugin, merge_sync_message::MergeSyncMessageProcessor,
     plugin_processor::PluginProcessor,
     prescription_request_status::PrescriptionRequestStatusProcessor,
@@ -55,6 +56,7 @@ pub enum ProcessorType {
     AssignRequisitionNumber,
     AssignPrescriptionNumber,
     PrescriptionRequestStatus,
+    CancelledDatetime,
     SupportUploadFiles,
     Plugins,
     RequisitionAutoFinalise,
@@ -79,6 +81,8 @@ impl ProcessorType {
             ProcessorType::PrescriptionRequestStatus => {
                 vec![Box::new(PrescriptionRequestStatusProcessor)]
             }
+            // Cursor seeded at the changelog head by its migration (#12547 trap)
+            ProcessorType::CancelledDatetime => vec![Box::new(CancelledDatetimeProcessor)],
             ProcessorType::Plugins => get_plugin_processors(),
             ProcessorType::RequisitionAutoFinalise => {
                 vec![Box::new(RequisitionAutoFinaliseProcessor)]
