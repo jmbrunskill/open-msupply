@@ -184,7 +184,10 @@ const coerce = (
 export const parseImportFile = (
   text: string,
   definitions: readonly PropertyDefinition[],
-  facilities: readonly Pick<FacilityRow, 'id' | 'code' | 'properties'>[]
+  facilities: readonly Pick<
+    FacilityRow,
+    'id' | 'code' | 'name' | 'properties'
+  >[]
 ): ImportRow[] => {
   const table = parseCsv(text);
   if (table.length < 2) return [];
@@ -246,7 +249,10 @@ export const parseImportFile = (
     const facility = byCode.get(code.toLowerCase());
     return {
       code,
-      name,
+      // The import updates properties only and never renames, so the review
+      // shows the facility's existing name; the file's name is only a
+      // (required) label and is used when no facility matches the code.
+      name: facility?.name ?? name,
       values,
       cells: raw,
       // No match ⇒ an empty id, submitted anyway (see ImportRow.id).

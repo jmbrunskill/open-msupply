@@ -15,9 +15,7 @@ import {
   type PropertyDefinition,
   type RowOutcome,
 } from './propertyImport';
-import {
-  isCsvFileName,
-} from '@/domain/csvImport';
+import { isCsvFileName } from '@/domain/csvImport';
 
 // Anchors: spec/names/cases/OMS-REG-MNG-02 (the facility-property import).
 // In node the catalog isn't loaded, so t() falls back to its keys — the
@@ -48,8 +46,13 @@ const FACILITY_TYPE = definition();
 const DEFS = [FACILITY_TYPE, POPULATION];
 
 const FACILITIES = [
-  { id: 'name-kopu', code: 'Kopu', properties: '{"latitude":-37.1}' },
-  { id: 'name-opua', code: 'Opua', properties: '{}' },
+  {
+    id: 'name-kopu',
+    code: 'Kopu',
+    name: 'Kopu Health Centre',
+    properties: '{"latitude":-37.1}',
+  },
+  { id: 'name-opua', code: 'Opua', name: 'Opua Clinic', properties: '{}' },
 ];
 
 describe('OMS-REG-MNG-02.35 — a non-CSV file is refused before parsing', () => {
@@ -179,9 +182,9 @@ describe('OMS-REG-MNG-02.38 — every bad row is flagged, with all its reasons',
     const [row] = parse('Kopu,Kopu Health Centre,Maternal Clinic,1200\n');
     expect(row.errors).toEqual([]);
     expect(row.values).toEqual({
-      'facility_type': 'Maternal Clinic',
+      facility_type: 'Maternal Clinic',
       // A numeric property is written as a NUMBER, not the cell's text.
-      'population_served': 1200,
+      population_served: 1200,
     });
   });
 
@@ -194,6 +197,27 @@ describe('OMS-REG-MNG-02.38 — every bad row is flagged, with all its reasons',
     );
     expect(JSON.parse(row.properties)).toEqual({ latitude: -37.1 });
     expect(row.errors).toEqual([]);
+  });
+});
+
+describe('#7109 — the review shows the facility’s existing name', () => {
+  it('ignores a changed name in the file for a matched facility', () => {
+    const [row] = parseImportFile(
+      'Code,Name,facility_type\nKopu,Renamed In File,Maternal Clinic\n',
+      DEFS,
+      FACILITIES
+    );
+    expect(row.name).toBe('Kopu Health Centre');
+    expect(row.errors).toEqual([]);
+  });
+
+  it('keeps the file’s name when no facility matches the code', () => {
+    const [row] = parseImportFile(
+      'Code,Name,facility_type\nNOPE,Nowhere Clinic,Maternal Clinic\n',
+      DEFS,
+      FACILITIES
+    );
+    expect(row.name).toBe('Nowhere Clinic');
   });
 });
 
