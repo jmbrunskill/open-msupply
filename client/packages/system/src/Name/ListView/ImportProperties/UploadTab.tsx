@@ -147,10 +147,10 @@ export const UploadTab: FC<ImportPanel & UploadTabProps> = ({
         );
       }
 
-      const id = facilitiesData?.nodes?.find(
+      const existingFacility = facilitiesData?.nodes?.find(
         facility => facility.code == code
-      )?.id;
-      importRow.id = id ?? '';
+      );
+      importRow.id = existingFacility?.id ?? '';
 
       importRow.code = code;
 
@@ -162,7 +162,9 @@ export const UploadTab: FC<ImportPanel & UploadTabProps> = ({
           })
         );
       }
-      importRow.name = name;
+      // The import only updates properties and never renames the facility, so
+      // show the existing name rather than the one in the file
+      importRow.name = existingFacility?.name ?? name;
 
       processProperties(propertyNodes ?? [], row, importRow, rowErrors, t);
       importRow.errorMessage = rowErrors.join(',');
