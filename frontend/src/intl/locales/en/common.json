@@ -702,6 +702,8 @@
   "error.sync-api-incompatible-hint": "The mSupply Central Server needs to be upgraded to a newer version before you can connect - please contact support@msupply.foundation",
   "error.sync-api-paused": "Central server sync is paused",
   "error.sync-api-paused-hint": "The central server is under maintenance. This site keeps trying on its normal schedule and syncs again once the central server resumes.",
+  "error.sync-request-timeout": "The sync request timed out",
+  "error.sync-request-timeout-hint": "The central server did not respond in time. Check your connection, then try syncing again.",
   "error.sync-v6-api-incompatible": "Sync V6 API version is not compatible",
   "error.sync-v6-api-incompatible-hint": "The Open mSupply Central Server needs to be upgraded to a newer version before you can connect - please contact support@msupply.foundation",
   "error.timeout": "The request to get your location timed out.",

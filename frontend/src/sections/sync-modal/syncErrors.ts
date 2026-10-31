@@ -81,6 +81,11 @@ const SUMMARY_BY_VARIANT: Record<SyncErrorVariant, SyncErrorSummary> = {
     hint: 'error.sync-api-paused-hint',
     severity: 'warning',
   },
+  // A sync request to central timed out; the next sync normally succeeds.
+  REQUEST_TIMEOUT: {
+    summary: 'error.sync-request-timeout',
+    hint: 'error.sync-request-timeout-hint',
+  },
   // Integration.
   INTEGRATION_TIMEOUT_REACHED: INTEGRATION_TIMEOUT,
   // Server-side faults the user can't act on — the app's "internal error".

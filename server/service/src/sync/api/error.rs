@@ -89,6 +89,23 @@ struct ErrorWrapper {
 }
 
 impl SyncApiErrorVariantV5 {
+    /// The request (or reading its response) hit the client-side timeout. Checked on the
+    /// underlying `reqwest::Error` as a timeout can surface as any of the variants below,
+    /// depending on whether it fired while connecting, waiting for headers or reading the body.
+    pub fn is_timeout(&self) -> bool {
+        match self {
+            SyncApiErrorVariantV5::ConnectionError(error)
+            | SyncApiErrorVariantV5::ResponseParsingError(
+                ParsingResponseError::ConnectionDropped(error)
+                | ParsingResponseError::CannotGetTextResponse(error),
+            ) => error.is_timeout(),
+            SyncApiErrorVariantV5::Other(error) => error
+                .downcast_ref::<reqwest::Error>()
+                .is_some_and(|error| error.is_timeout()),
+            _ => false,
+        }
+    }
+
     pub(crate) async fn from_response_and_status(status: StatusCode, response: Response) -> Self {
         let error = match to_json::<ErrorWrapper>(response).await {
             Ok(ErrorWrapper { error: source }) => {
@@ -134,6 +151,11 @@ impl SyncApiError {
 
     pub(crate) fn is_connection(&self) -> bool {
         matches!(self.source, SyncApiErrorVariantV5::ConnectionError(_))
+    }
+
+    /// See `SyncApiErrorVariantV5::is_timeout`.
+    pub fn is_timeout(&self) -> bool {
+        self.source.is_timeout()
     }
 
     pub(crate) fn is_unknown(&self) -> bool {

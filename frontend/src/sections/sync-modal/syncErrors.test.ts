@@ -45,6 +45,8 @@ const EXPECTED: Record<SyncErrorVariant, string> = {
   WAITING_FOR_CENTRAL_V7_UPGRADE: 'error.waiting-for-central-v7-upgrade',
   // central paused its sync API (issue #717)
   SYNC_API_PAUSED: 'error.sync-api-paused',
+  // a request to central timed out
+  REQUEST_TIMEOUT: 'error.sync-request-timeout',
   // integration timed out
   INTEGRATION_TIMEOUT_REACHED: 'error.integration-timeout-reached',
   // server problem (internal)
@@ -74,6 +76,7 @@ const HINTED = new Set([
   'error.v6-server-not-configured',
   'error.v7-upgrade-failed',
   'error.sync-api-paused',
+  'error.sync-request-timeout',
 ]);
 
 const variants = Object.keys(EXPECTED) as SyncErrorVariant[];
@@ -87,7 +90,7 @@ describe('syncErrorSummary — variant → kind mapping (SYNC-03.28)', () => {
 
   it('is one distinct summary per kind — not a single generic message', () => {
     const distinct = new Set(variants.map(v => syncErrorSummary(v).summary));
-    expect(distinct.size).toBe(19);
+    expect(distinct.size).toBe(20);
   });
 
   it('frames only a paused central as a warning — everything else is an error', () => {

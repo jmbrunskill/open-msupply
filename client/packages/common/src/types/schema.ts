@@ -11491,6 +11491,7 @@ export enum SyncErrorVariant {
   IntegrationError = 'INTEGRATION_ERROR',
   IntegrationTimeoutReached = 'INTEGRATION_TIMEOUT_REACHED',
   InvalidUrl = 'INVALID_URL',
+  RequestTimeout = 'REQUEST_TIMEOUT',
   SiteAuthTimeout = 'SITE_AUTH_TIMEOUT',
   SiteHasNoStore = 'SITE_HAS_NO_STORE',
   SiteNameNotFound = 'SITE_NAME_NOT_FOUND',

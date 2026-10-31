@@ -109,6 +109,7 @@ function mapSyncErrorV5V6(
     [SyncErrorVariant.IntegrationError]: 'error.internal-error',
     [SyncErrorVariant.V7UpgradeFailed]: 'error.v7-upgrade-failed',
     [SyncErrorVariant.SyncApiPaused]: 'error.sync-api-paused',
+    [SyncErrorVariant.RequestTimeout]: 'error.sync-request-timeout',
     [SyncErrorVariant.Unknown]: defaultKey || 'error.unknown-sync-error',
   };
 
@@ -124,6 +125,8 @@ function mapSyncErrorV5V6(
         return t('error.v7-upgrade-failed-hint');
       case SyncErrorVariant.SyncApiPaused:
         return t('error.sync-api-paused-hint');
+      case SyncErrorVariant.RequestTimeout:
+        return t('error.sync-request-timeout-hint');
       default:
         return undefined;
     }
