@@ -1,7 +1,12 @@
 use super::{
     LocationRow, NameRow, ReasonOptionRow, StockLineRow, StocktakeLineRow, StorageConnection,
-    item_row::item, location_row::location, name_row::name, reason_option_row::reason_option,
-    stock_line_row::stock_line, stocktake_line_row::stocktake_line,
+    campaign_row::{CampaignRow, campaign},
+    item_row::item,
+    location_row::location,
+    name_row::name,
+    reason_option_row::reason_option,
+    stock_line_row::stock_line,
+    stocktake_line_row::stocktake_line,
 };
 
 use diesel::{dsl::IntoBoxed, prelude::*};
@@ -65,6 +70,7 @@ pub enum StocktakeLineSortField {
     SnapshotNumberOfPacks,
     CountedNumberOfPacks,
     ReasonOption,
+    Campaign,
 }
 
 pub type StocktakeLineSort = Sort<StocktakeLineSortField>;
@@ -76,6 +82,7 @@ type StocktakeLineJoin = (
     Option<LocationRow>,
     Option<NameRow>,
     Option<ReasonOptionRow>,
+    Option<CampaignRow>,
 );
 
 #[derive(Debug, Clone, PartialEq, Default)]
@@ -158,6 +165,9 @@ impl<'a> StocktakeLineRepository<'a> {
                 StocktakeLineSortField::ReasonOption => {
                     apply_sort_no_case!(query, sort, reason_option::reason);
                 }
+                StocktakeLineSortField::Campaign => {
+                    apply_sort_no_case!(query, sort, campaign::name);
+                }
             };
         }
 
@@ -195,12 +205,14 @@ fn query() -> _ {
         .left_join(location::table)
         .left_join(name::table)
         .left_join(reason_option::table)
+        // The stocktake line's own campaign (not the stock line's)
+        .left_join(campaign::table.on(stocktake_line::campaign_id.eq(campaign::id.nullable())))
 }
 
 type BoxedStocktakeLineQuery = IntoBoxed<'static, query, DBType>;
 
 fn to_domain(
-    (line, item, stock_line, location, donor, reason_option): StocktakeLineJoin,
+    (line, item, stock_line, location, donor, reason_option, _campaign): StocktakeLineJoin,
 ) -> StocktakeLine {
     StocktakeLine {
         line,
@@ -232,4 +244,73 @@ fn apply_item_filter(
         return query.filter(item::id.eq_any(item_ids));
     }
     query
+}
+
+#[cfg(test)]
+mod test {
+    use crate::{
+        CampaignRow, Pagination, StocktakeLineRepository, StocktakeLineRow, StocktakeLineSort,
+        StocktakeLineSortField,
+        mock::{MockData, MockDataInserts, mock_item_a, mock_stocktake_a},
+        test_db,
+    };
+
+    fn campaign(id: &str, name: &str) -> CampaignRow {
+        CampaignRow {
+            id: id.to_string(),
+            name: name.to_string(),
+            ..Default::default()
+        }
+    }
+
+    fn line(id: &str, campaign_id: Option<&str>) -> StocktakeLineRow {
+        StocktakeLineRow {
+            id: id.to_string(),
+            stocktake_id: mock_stocktake_a().id,
+            item_id: mock_item_a().id,
+            item_name: mock_item_a().name,
+            campaign_id: campaign_id.map(str::to_string),
+            ..Default::default()
+        }
+    }
+
+    #[actix_rt::test]
+    async fn test_stocktake_line_sort_by_campaign() {
+        let (_, connection, _, _) = test_db::setup_all_with_data(
+            "test_stocktake_line_sort_by_campaign",
+            MockDataInserts::none()
+                .names()
+                .stores()
+                .items()
+                .stocktakes(),
+            MockData {
+                campaigns: vec![campaign("c1", "Alpha"), campaign("c2", "beta")],
+                // inserted out of order
+                stocktake_lines: vec![line("l_beta", Some("c2")), line("l_alpha", Some("c1"))],
+                ..Default::default()
+            },
+        )
+        .await;
+
+        let repo = StocktakeLineRepository::new(&connection);
+        let ids = |desc: bool| -> Vec<String> {
+            repo.query(
+                Pagination::all(),
+                None,
+                Some(StocktakeLineSort {
+                    key: StocktakeLineSortField::Campaign,
+                    desc: Some(desc),
+                }),
+                None,
+            )
+            .unwrap()
+            .into_iter()
+            .map(|l| l.line.id)
+            .filter(|id| id.starts_with("l_"))
+            .collect()
+        };
+
+        assert_eq!(ids(false), vec!["l_alpha", "l_beta"]);
+        assert_eq!(ids(true), vec!["l_beta", "l_alpha"]);
+    }
 }
