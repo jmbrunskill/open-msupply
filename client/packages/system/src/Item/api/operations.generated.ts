@@ -961,6 +961,8 @@ export type ItemVariantsQuery = {
     __typename: 'ItemConnector';
     nodes: Array<{
       __typename: 'ItemNode';
+      name: string;
+      code: string;
       isVaccine: boolean;
       restrictedLocationTypeId?: string | null;
       variants: Array<{
@@ -2001,6 +2003,8 @@ export const ItemVariantsDocument = gql`
         __typename
         nodes {
           __typename
+          name
+          code
           isVaccine
           restrictedLocationTypeId
           variants {
