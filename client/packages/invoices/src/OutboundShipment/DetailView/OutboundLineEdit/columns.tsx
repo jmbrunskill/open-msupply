@@ -257,7 +257,7 @@ export const useOutboundLineEditColumns = ({
           <NumberInputCell
             id={getStockOutQuantityCellId(row.original.batch)} // Used by when adding by barcode scanner
             cell={cell}
-            debounceTime={500}
+            updateOnBlur
             updateFn={value =>
               allocate(row.original.id, value, {
                 preventPartialPacks: true,
