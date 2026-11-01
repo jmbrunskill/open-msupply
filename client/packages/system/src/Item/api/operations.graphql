@@ -408,6 +408,8 @@ query itemVariants($storeId: String!, $itemId: String!) {
       __typename
       nodes {
         __typename
+        name
+        code
         isVaccine
         restrictedLocationTypeId
         variants {

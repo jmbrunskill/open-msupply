@@ -90,6 +90,11 @@ export const ItemVariantSelectPanel = ({
       cancelButton={<DialogButton variant="cancel" onClick={onClose} />}
     >
       <Box display="flex" flexDirection="column" gap={2} padding={2}>
+        {data && (
+          <Typography variant="body1" fontWeight="bold">
+            {data.name} ({data.code})
+          </Typography>
+        )}
         <VariantCard onClick={onManual ?? onClose}>
           <Typography variant="body1" fontWeight="bold">
             {t('heading.enter-values-manually')}
