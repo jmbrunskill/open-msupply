@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import {
   NumericTextInput,
   useDebounceCallback,
@@ -7,11 +7,16 @@ import {
 } from '@openmsupply-client/common';
 import { MRT_Cell, MRT_RowData } from 'material-react-table';
 
-interface NumberInputCellProps<T extends MRT_RowData>
-  extends NumericTextInputProps {
+interface NumberInputCellProps<
+  T extends MRT_RowData,
+> extends NumericTextInputProps {
   cell: MRT_Cell<T>;
   updateFn: (value: number) => void;
   debounceTime?: number; // ms
+  // Apply the update when the input loses focus rather than while typing. Use
+  // when updateFn rewrites the value (e.g. rounds up to whole packs), as doing
+  // that mid-entry makes large numbers impossible to type.
+  updateOnBlur?: boolean;
 }
 
 export const NumberInputCell = <T extends MRT_RowData>({
@@ -21,6 +26,7 @@ export const NumberInputCell = <T extends MRT_RowData>({
   // read/update logic, but leaving the functionality here for compatibility
   // with existing implementations (e.g. allocation login in Outbound Shipments)
   debounceTime = 0,
+  updateOnBlur = false,
   ...numericTextProps
 }: NumberInputCellProps<T>) => {
   const { getValue, column, row } = cell;
@@ -53,7 +59,9 @@ export const NumberInputCell = <T extends MRT_RowData>({
     debounceTime
   );
 
-  return (
+  const pendingValue = useRef<number | null>(null);
+
+  const input = (
     <NumericTextInput
       decimalLimit={2}
       min={0}
@@ -62,12 +70,31 @@ export const NumberInputCell = <T extends MRT_RowData>({
         const newValue = num === undefined ? 0 : num;
         if (newValue === value) return;
         setBuffer(newValue);
-        debouncedUpdate(newValue);
+        if (updateOnBlur) pendingValue.current = newValue;
+        else debouncedUpdate(newValue);
       }}
       onKeyDown={stopPropagationForArrowKeys}
       fullWidth
       {...numericTextProps}
     />
+  );
+
+  if (!updateOnBlur) return input;
+
+  // focusout bubbles, so this runs after the input's own blur handling
+  return (
+    <div
+      style={{ width: '100%' }}
+      onBlur={() => {
+        if (pendingValue.current === null) return;
+        const newValue = pendingValue.current;
+        pendingValue.current = null;
+        const resetValue = updateFn(newValue);
+        if (resetValue !== undefined) setBuffer(resetValue);
+      }}
+    >
+      {input}
+    </div>
   );
 };
 
