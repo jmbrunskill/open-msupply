@@ -270,10 +270,14 @@ pub fn get_adjusted_quantity_consumed(
 ) -> f64 {
     let days_in_stock = period_length_in_days - stock_out_duration;
 
-    match days_in_stock {
-        0 => consumed,
-        days_in_stock => consumed * period_length_in_days as f64 / days_in_stock as f64,
+    // Out of stock for the whole period (or longer, e.g. days in a 31 day month
+    // against the 30 day approximation): nothing could have been consumed, and
+    // scaling up would divide by zero (or flip the sign)
+    if days_in_stock <= 0 {
+        return 0.0;
     }
+
+    consumed * period_length_in_days as f64 / days_in_stock as f64
 }
 
 #[derive(Debug, PartialEq, Default, Copy, Clone)]
