@@ -65,8 +65,9 @@ describe('adjustedQuantityConsumed (OMS-REG-REPL-07.18)', () => {
     expect(adjustedQuantityConsumed(20, 10, 30)).toBe(30);
   });
 
-  it('falls back to plain consumption with no in-stock days', () => {
-    expect(adjustedQuantityConsumed(20, 30, 30)).toBe(20);
+  it('is 0 with no in-stock days, including stock-out beyond the period (#12539)', () => {
+    expect(adjustedQuantityConsumed(20, 30, 30)).toBe(0);
+    expect(adjustedQuantityConsumed(20, 31, 30)).toBe(0);
   });
 
   it('is plain consumption with no stock-out', () => {

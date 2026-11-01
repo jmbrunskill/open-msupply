@@ -55,16 +55,15 @@ export const previousMonthlyConsumption = (line: {
     .filter(v => Number.isFinite(v));
 
 /** rules § line generation: consumption scaled up for stock-out days; with no
- * in-stock days it falls back to plain consumption. */
+ * in-stock days (stock-out covers the whole period or more) nothing could have
+ * been consumed, so it is 0 (#12539). */
 export const adjustedQuantityConsumed = (
   quantityConsumed: number,
   stockOutDuration: number,
   periodLength: number
 ): number => {
   const daysInStock = periodLength - stockOutDuration;
-  return daysInStock <= 0
-    ? quantityConsumed
-    : (quantityConsumed * periodLength) / daysInStock;
+  return daysInStock <= 0 ? 0 : (quantityConsumed * periodLength) / daysInStock;
 };
 
 /** rules § line generation: the mean of this period's monthly consumption and

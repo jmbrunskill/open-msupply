@@ -365,9 +365,16 @@ mod generate_rnr_form_lines {
 
     #[actix_rt::test]
     async fn test_get_adjusted_quantity_consumed() {
-        // if stock_out for whole period, just returns what is consumed
+        // if stock_out for whole period (or more), nothing could have been consumed
         // (there shouldn't be any consumption if there's a stock out, but we'll set it to 4 for testing purposes)
-        assert_eq!(get_adjusted_quantity_consumed(10, 10, 4.0), 4.0);
+        assert_eq!(get_adjusted_quantity_consumed(10, 10, 4.0), 0.0);
+        assert_eq!(get_adjusted_quantity_consumed(30, 31, 4.0), 0.0);
+
+        // so the AMC with no history is 0 too, not NaN/inf
+        assert_eq!(
+            get_amc(30, get_adjusted_quantity_consumed(30, 31, 4.0), &vec![]),
+            0.0
+        );
 
         // if no stock out, adjusted matches consumption
         assert_eq!(get_adjusted_quantity_consumed(10, 0, 4.0), 4.0);
