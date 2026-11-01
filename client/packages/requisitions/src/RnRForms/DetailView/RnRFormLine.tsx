@@ -62,9 +62,11 @@ export const RnRFormLine = ({
 
     const stockAvailableDays = periodLength - stockOutDuration;
 
-    const adjustedQuantityConsumed = stockAvailableDays
-      ? quantityConsumed * (periodLength / stockAvailableDays)
-      : quantityConsumed;
+    // No days in stock means no demand signal, so adjusted consumption is 0
+    const adjustedQuantityConsumed =
+      stockAvailableDays > 0
+        ? quantityConsumed * (periodLength / stockAvailableDays)
+        : 0;
 
     // This calculation might be a plugin in future!
     const averageMonthlyConsumption = getAmc(
