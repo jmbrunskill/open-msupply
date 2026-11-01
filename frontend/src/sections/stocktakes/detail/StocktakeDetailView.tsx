@@ -122,7 +122,7 @@ type StocktakeInfoNode = Extract<
 // The server sort-field union (from codegen) — a column can only ever name a
 // real server sort key (kdd/type-safety). Columns whose data the server can't
 // sort on (manufacture date, unit, doses, difference, donor, manufacturer,
-// campaign, comment — see spec contract § backend gaps) simply omit `sortKey`.
+// comment — see spec contract § backend gaps) simply omit `sortKey`.
 type SortKey = NonNullable<StocktakeLinesVariables['sort']>[number]['key'];
 
 // Card view (below 600px): the item name is the card title (headerPosition
@@ -922,10 +922,11 @@ const StocktakeDetailView: Component = () => {
       cardGroup: 'more',
     },
     {
-      // Campaign name (ungated) — campaign.name on the line. Unsortable (no
-      // server key; backend gap). Matches OMS's columns.tsx campaign, placed
-      // after Manufacturer, before Comment.
+      // Campaign name (ungated) — campaign.name on the line. Sorted
+      // server-side by campaign name. Matches OMS's columns.tsx campaign,
+      // placed after Manufacturer, before Comment.
       c: { accessor: line => line.campaign?.name ?? '', id: 'campaign' },
+      sortKey: 'campaign',
       header: () => t('label.campaign-only'),
       cardGroup: 'more',
       ...getCellDefinition('campaign'),

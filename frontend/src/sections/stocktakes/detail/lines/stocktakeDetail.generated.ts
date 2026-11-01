@@ -156,7 +156,7 @@ export type StocktakeLinesVariables = {
   } | null;
   } | null;
   sort?: Array<{
-    key: "itemCode" | "itemName" | "batch" | "expiryDate" | "packSize" | "locationCode" | "snapshotNumberOfPacks" | "countedNumberOfPacks" | "reasonOption";
+    key: "itemCode" | "itemName" | "batch" | "expiryDate" | "packSize" | "locationCode" | "snapshotNumberOfPacks" | "countedNumberOfPacks" | "reasonOption" | "campaign";
     desc?: boolean | null;
   }> | null;
 };

@@ -9123,6 +9123,7 @@ enum StocktakeLineSortFieldInput {
 	snapshotNumberOfPacks
 	countedNumberOfPacks
 	reasonOption
+	campaign
 }
 
 input StocktakeLineSortInput {

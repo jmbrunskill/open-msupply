@@ -11164,6 +11164,7 @@ export type StocktakeLineNodeManufacturerArgs = {
 
 export enum StocktakeLineSortFieldInput {
   Batch = 'batch',
+  Campaign = 'campaign',
   CountedNumberOfPacks = 'countedNumberOfPacks',
   ExpiryDate = 'expiryDate',
   ItemCode = 'itemCode',

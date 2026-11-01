@@ -50,6 +50,7 @@ pub enum StocktakeLineSortFieldInput {
     SnapshotNumberOfPacks,
     CountedNumberOfPacks,
     ReasonOption,
+    Campaign,
 }
 
 #[derive(InputObject)]
