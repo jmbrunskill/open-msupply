@@ -93,7 +93,13 @@ export const ReportUploadModal = ({
             justifyContent: 'center',
           }}
         >
-          <UploadFile onUpload={onUpload} files={draft.files} multiple />
+          <UploadFile
+            onUpload={onUpload}
+            files={draft.files}
+            accept={{ 'application/json': ['.json'] }}
+            onRejected={() => error(t('error.report-invalid-file'))()}
+            multiple
+          />
         </Box>
         <Box sx={{ display: 'flex', width: '300px' }}>
           <FileList
