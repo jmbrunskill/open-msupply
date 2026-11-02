@@ -286,8 +286,12 @@ impl<'a> NameRepository<'a> {
             }
         };
 
-        // Only return active (not deleted) names
-        query = query.filter(name::deleted_datetime.is_null());
+        // Only return active (not deleted) names, unless the caller is looking
+        // up names referenced by existing records (include_disabled), which
+        // must stay visible after the name is soft-deleted (e.g. by sync)
+        if !include_disabled {
+            query = query.filter(name::deleted_datetime.is_null());
+        }
         query
     }
 }
@@ -411,6 +415,7 @@ impl NameFilter {
         self
     }
 
+    /// Also returns disabled and soft-deleted names
     pub fn include_disabled(mut self, value: bool) -> Self {
         self.include_disabled = Some(value);
         self
@@ -815,5 +820,36 @@ mod tests {
             )
             .unwrap();
         assert_eq!(result.first().unwrap().name_row.code, "code3");
+    }
+
+    #[actix_rt::test]
+    async fn test_name_query_include_deleted_with_include_disabled() {
+        let (_, connection, _, _) =
+            test_db::setup_all("test_name_query_include_deleted", MockDataInserts::none()).await;
+
+        NameRowRepository::new(&connection)
+            .upsert_one(&NameRow {
+                id: "deleted_name".to_string(),
+                name: "Deleted".to_string(),
+                code: "del".to_string(),
+                is_supplier: true,
+                deleted_datetime: Some(chrono::Utc::now().naive_utc()),
+                ..Default::default()
+            })
+            .unwrap();
+
+        let repo = NameRepository::new(&connection);
+        let by_id =
+            || NameFilter::new().id(crate::EqualFilter::equal_to("deleted_name".to_string()));
+
+        // Default listing hides soft-deleted names
+        assert!(repo.query_by_filter("store", by_id()).unwrap().is_empty());
+
+        // Lookups for names referenced by existing records (e.g. an inbound
+        // shipment's supplier) still find them
+        let result = repo
+            .query_by_filter("store", by_id().include_disabled(true))
+            .unwrap();
+        assert_eq!(result.len(), 1);
     }
 }
