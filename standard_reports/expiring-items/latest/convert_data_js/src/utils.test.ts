@@ -1,5 +1,6 @@
 import {
   processStockLines,
+  consolidateStockLines,
   calculateDaysUntilExpired,
   roundDaysToInteger,
   calculateExpectedUsage,
@@ -125,3 +126,63 @@ describe('calculate stock at risk ', () => {
 //     spyCalculateDaysUntilExpired.mockRestore();
 //   });
 // });
+
+describe('consolidate stock lines', () => {
+  const line = (id: string, overrides: object = {}) => ({
+    id,
+    batch: 'B1',
+    expiryDate: '2024-06-01',
+    packSize: 1,
+    totalNumberOfPacks: 10,
+    item: { code: 'ITEM1', name: 'Item 1' },
+    ...overrides,
+  });
+
+  it('merges lines with the same item, batch and expiry, summing units', () => {
+    const result = consolidateStockLines([
+      line('a', { packSize: 10, totalNumberOfPacks: 2 }),
+      line('b', { packSize: 5, totalNumberOfPacks: 4 }),
+    ]);
+    expect(result).toHaveLength(1);
+    expect(result[0].packSize).toBe(1);
+    expect(result[0].totalNumberOfPacks).toBe(40);
+  });
+
+  it('keeps lines apart when item, batch or expiry differ', () => {
+    const result = consolidateStockLines([
+      line('a'),
+      line('b', { batch: 'B2' }),
+      line('c', { expiryDate: '2024-07-01' }),
+      line('d', { item: { code: 'ITEM2', name: 'Item 2' } }),
+    ]);
+    expect(result).toHaveLength(4);
+  });
+
+  it('leaves a single line untouched', () => {
+    const single = line('a', { packSize: 10, totalNumberOfPacks: 2 });
+    expect(consolidateStockLines([single])).toEqual([single]);
+  });
+
+  it('stock at risk is calculated on the merged line', () => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date('2024-04-01'));
+    const item = {
+      code: 'ITEM1',
+      name: 'Item 1',
+      stats: { averageMonthlyConsumption: 10 },
+    };
+    // Same batch split over two lines, consumption would otherwise cover each line on its own
+    const result = processStockLines(
+      [
+        line('a', { totalNumberOfPacks: 15, item }),
+        line('b', { totalNumberOfPacks: 15, item }),
+      ],
+      'item.name',
+      'asc'
+    );
+    jest.useRealTimers();
+    expect(result).toHaveLength(1);
+    expect(result[0].totalNumberOfPacks).toBe(30);
+    expect(result[0].stockAtRisk).toBeGreaterThan(0);
+  });
+});

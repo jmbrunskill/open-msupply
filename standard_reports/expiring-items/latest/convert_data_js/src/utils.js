@@ -1,8 +1,43 @@
 import { sortNodes } from '../../../../utils';
 
+// Stock lines for the same item, batch and expiry date are reported as one line (e.g. the same
+// batch received on an inbound shipment and via a return). Otherwise the item's consumption is
+// applied against each line separately and "stock at risk" is skewed.
+// Stock is added up in units, so the merged line has a pack size of 1.
+const consolidateStockLines = nodes => {
+  const merged = new Map();
+  const result = [];
+
+  nodes.forEach(line => {
+    const key = JSON.stringify([
+      line?.item?.code,
+      line?.batch ?? '',
+      line?.expiryDate ?? '',
+    ]);
+    const units = (line?.totalNumberOfPacks ?? 0) * (line?.packSize ?? 0);
+    const existing = merged.get(key);
+
+    if (!existing) {
+      merged.set(key, { line, count: 1, units });
+      result.push(key);
+    } else {
+      existing.count += 1;
+      existing.units += units;
+    }
+  });
+
+  return result.map(key => {
+    const { line, count, units } = merged.get(key);
+    if (count === 1) return line;
+    return { ...line, packSize: 1, totalNumberOfPacks: units };
+  });
+};
+
 const processStockLines = (nodes, sort, dir) => {
   // Filter out empty objects first
-  const filteredNodes = nodes.filter(line => Object.keys(line).length > 0);
+  const filteredNodes = consolidateStockLines(
+    nodes.filter(line => Object.keys(line).length > 0)
+  );
 
   filteredNodes.forEach(line => {
     const daysUntilExpiredFloat = calculateDaysUntilExpired(line?.expiryDate);
@@ -93,6 +128,7 @@ const roundDaysToInteger = daysUntilExpired => {
 };
 
 export {
+  consolidateStockLines,
   calculateExpectedUsage,
   processStockLines,
   calculateDaysUntilExpired,
