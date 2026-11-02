@@ -39,10 +39,6 @@ pub enum InsertCustomerReturnError {
     OutboundShipmentDoesNotBelongToCurrentStore,
     OriginalInvoiceNotAnOutboundShipment,
     CannotReturnOutboundShipment,
-    // Returning more of an item than was issued on the outbound shipment (across all returns)
-    ReturnExceedsIssuedQuantity {
-        item_id: String,
-    },
     // Name validation
     OtherPartyNotACustomer,
     OtherPartyNotVisible,
@@ -177,6 +173,7 @@ mod test {
     };
 
     use super::CustomerReturnLineInput;
+    use super::validate::find_items_returned_more_than_issued;
 
     #[actix_rt::test]
     async fn test_insert_customer_return_errors() {
@@ -370,7 +367,7 @@ mod test {
     }
 
     #[actix_rt::test]
-    async fn test_insert_customer_return_cannot_return_more_than_issued() {
+    async fn test_insert_customer_return_more_than_issued_is_allowed() {
         let outbound = InvoiceRow {
             id: "issued_outbound_shipment".to_string(),
             currency_id: Some(currency_a().id),
@@ -393,7 +390,7 @@ mod test {
         };
 
         let (_, _, connection_manager, _) = setup_all_with_data(
-            "test_insert_customer_return_cannot_return_more_than_issued",
+            "test_insert_customer_return_more_than_issued_is_allowed",
             MockDataInserts::all(),
             MockData {
                 invoices: vec![outbound.clone()],
@@ -427,27 +424,29 @@ mod test {
                 .insert_customer_return(&context, input)
         };
 
-        // More than issued in one go
-        assert_eq!(
-            insert(return_input("return_too_many", 6.0)).unwrap_err(),
-            ServiceError::ReturnExceedsIssuedQuantity {
-                item_id: mock_item_a().id
-            }
-        );
+        let over_returned = |input: &InsertCustomerReturn| {
+            let connection = service_provider.connection().unwrap();
+            let outbound = InvoiceRowRepository::new(&connection)
+                .find_one_by_id(&outbound.id)
+                .unwrap()
+                .unwrap();
+            find_items_returned_more_than_issued(&connection, &outbound, input).unwrap()
+        };
 
-        // 3 of the 5 issued
-        insert(return_input("return_first", 3.0)).unwrap();
+        // More than issued in one go is flagged, but allowed
+        let too_many = return_input("return_too_many", 6.0);
+        let flagged = over_returned(&too_many);
+        assert_eq!(flagged.len(), 1);
+        assert_eq!(flagged[0].issued_units, 5.0);
+        assert_eq!(flagged[0].returned_units, 6.0);
+        insert(too_many).unwrap();
 
-        // 3 more would be 6 of 5 issued
-        assert_eq!(
-            insert(return_input("return_second", 3.0)).unwrap_err(),
-            ServiceError::ReturnExceedsIssuedQuantity {
-                item_id: mock_item_a().id
-            }
-        );
-
-        // the remaining 2 is fine
-        insert(return_input("return_second", 2.0)).unwrap();
+        // 6 already returned, 1 more is 7 of 5 issued: still allowed
+        let second = return_input("return_second", 1.0);
+        let flagged = over_returned(&second);
+        assert_eq!(flagged.len(), 1);
+        assert_eq!(flagged[0].returned_units, 7.0);
+        insert(second).unwrap();
     }
 
     #[actix_rt::test]

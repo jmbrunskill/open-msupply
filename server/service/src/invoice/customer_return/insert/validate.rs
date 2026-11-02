@@ -34,10 +34,17 @@ pub fn validate(
         if !check_outbound_shipment_is_returnable(&outbound_shipment) {
             return Err(CannotReturnOutboundShipment);
         }
-        if let Some(item_id) =
-            find_item_returned_more_than_issued(connection, &outbound_shipment, input)?
-        {
-            return Err(ReturnExceedsIssuedQuantity { item_id });
+        // Returning more than was issued is allowed (e.g. the original shipment may have been
+        // edited elsewhere), but flag it
+        for over in find_items_returned_more_than_issued(connection, &outbound_shipment, input)? {
+            log::warn!(
+                "Customer return {} returns more of item {} than was issued on outbound shipment {}: {} returned in total (including this return), {} issued (units)",
+                input.id,
+                over.item_id,
+                outbound_shipment.id,
+                over.returned_units,
+                over.issued_units
+            );
         }
     }
 
@@ -70,14 +77,21 @@ fn check_outbound_shipment_is_returnable(outbound_shipment: &InvoiceRow) -> bool
     )
 }
 
-/// Returns the first item where (already returned against this outbound shipment + this
-/// return) is more than was issued on the outbound shipment, compared in units. Items that
-/// aren't on the outbound shipment are not checked.
-fn find_item_returned_more_than_issued(
+pub struct OverReturnedItem {
+    pub item_id: String,
+    pub issued_units: f64,
+    /// Already returned against the outbound shipment, plus this return
+    pub returned_units: f64,
+}
+
+/// Returns the items where (already returned against this outbound shipment + this return)
+/// is more than was issued on the outbound shipment, compared in units. Items that aren't on
+/// the outbound shipment are not checked.
+pub(crate) fn find_items_returned_more_than_issued(
     connection: &StorageConnection,
     outbound_shipment: &InvoiceRow,
     input: &InsertCustomerReturn,
-) -> Result<Option<String>, RepositoryError> {
+) -> Result<Vec<OverReturnedItem>, RepositoryError> {
     let line_repo = InvoiceLineRepository::new(connection);
 
     let mut issued_units: HashMap<String, f64> = HashMap::new();
@@ -115,8 +129,15 @@ fn find_item_returned_more_than_issued(
             line.number_of_packs * line.pack_size;
     }
 
-    Ok(returned_units.into_iter().find_map(|(item_id, returned)| {
-        let issued = issued_units.get(&item_id)?;
-        (returned > issued + 1e-6).then_some(item_id)
-    }))
+    Ok(returned_units
+        .into_iter()
+        .filter_map(|(item_id, returned_units)| {
+            let issued_units = *issued_units.get(&item_id)?;
+            (returned_units > issued_units + 1e-6).then_some(OverReturnedItem {
+                item_id,
+                issued_units,
+                returned_units,
+            })
+        })
+        .collect())
 }

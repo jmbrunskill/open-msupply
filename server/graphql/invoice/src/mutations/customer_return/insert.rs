@@ -107,7 +107,6 @@ fn map_error(error: ServiceError) -> Result<InsertErrorInterface> {
         | ServiceError::OutboundShipmentDoesNotBelongToCurrentStore
         | ServiceError::OriginalInvoiceNotAnOutboundShipment
         | ServiceError::CannotReturnOutboundShipment
-        | ServiceError::ReturnExceedsIssuedQuantity { .. }
         | ServiceError::InvoiceAlreadyExists
         | ServiceError::OtherPartyDoesNotExist
         | ServiceError::ErrorSettingNonNewStatus { .. } => BadUserInput(formatted_error),
