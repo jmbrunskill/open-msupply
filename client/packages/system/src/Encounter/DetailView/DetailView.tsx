@@ -152,6 +152,9 @@ export const DetailView: FC = () => {
           const result = await saveData(true);
           if (!result) return;
 
+          // The encounter is gone, don't prompt to mark it as visited
+          setShouldMarkVisited(false);
+
           // allow the is dirty flag to settle
           await new Promise(resolve => setTimeout(resolve, 100));
           navigate(-1);
@@ -211,7 +214,12 @@ export const DetailView: FC = () => {
     }
 
     // Allow to navigate away without prompt if the encounter is already visited
-    if (shouldMarkVisited && dataStatus === EncounterNodeStatus.Visited) {
+    // or has been deleted
+    if (
+      shouldMarkVisited &&
+      (dataStatus === EncounterNodeStatus.Visited ||
+        dataStatus === EncounterNodeStatus.Deleted)
+    ) {
       setShouldMarkVisited(false);
     }
   }, [dataStatus, isDirty]);
