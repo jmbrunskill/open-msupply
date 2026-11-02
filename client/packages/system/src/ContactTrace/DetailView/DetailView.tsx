@@ -101,14 +101,16 @@ export const DetailView: FC<DetailViewProps> = ({
   );
 
   // When a contact trace id changes (contact trace has been created), wait till the isDirty flag
-  // is cleared and then navigate to the correct url.
+  // is cleared and then navigate to the correct url. Replace the history entry, otherwise
+  // "back" returns to the "new" url, which redirects straight back to the saved contact trace.
   useEffect(() => {
     if (!isDirty && contactTraceId !== id) {
       navigate(
         RouteBuilder.create(AppRoute.Dispensary)
           .addPart(AppRoute.ContactTrace)
           .addPart(contactTraceId)
-          .build()
+          .build(),
+        { replace: true }
       );
     }
   }, [isDirty, contactTraceId, id, navigate]);
