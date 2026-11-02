@@ -63,8 +63,9 @@ const useCreate = () => {
 
   return useMutation({
     mutationFn,
-    onSuccess: () => queryClient.invalidateQueries({
-      queryKey: [STOCKTAKE]
-    }),
+    onSuccess: () =>
+      queryClient.invalidateQueries({
+        queryKey: [STOCKTAKE],
+      }),
   });
 };

@@ -27,11 +27,13 @@ export const AppBarButtons = ({
 }: AppBarButtonsProps) => {
   const t = useTranslation();
   const modalController = useToggle();
-  const { isPending: isLoading, fetchAsync } = useStocktakeOld.document.listAll({
-    key: 'createdDatetime',
-    direction: 'desc',
-    isDesc: true,
-  });
+  const { isPending: isLoading, fetchAsync } = useStocktakeOld.document.listAll(
+    {
+      key: 'createdDatetime',
+      direction: 'desc',
+      isDesc: true,
+    }
+  );
   const simplifiedTabletView = useSimplifiedTabletUI();
   const getCsvData = async () => {
     const data = await fetchAsync();

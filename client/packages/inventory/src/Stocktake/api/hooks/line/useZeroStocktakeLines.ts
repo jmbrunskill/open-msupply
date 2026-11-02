@@ -10,9 +10,16 @@ export const useZeroStocktakeLines = (
   const t = useTranslation();
   const { error, success } = useNotification();
 
-  const onZeroQuantities = async (
-    reasonOption: ReasonOptionRowFragment | null
-  ) => {
+  // Vaccine and non-vaccine items take different reasons (closed/open vial
+  // wastage vs negative inventory adjustment), so a mixed selection needs one
+  // reason per group
+  const onZeroQuantities = async ({
+    vaccineReason,
+    nonVaccineReason,
+  }: {
+    vaccineReason: ReasonOptionRowFragment | null;
+    nonVaccineReason: ReasonOptionRowFragment | null;
+  }) => {
     try {
       const { errorMessages } = await saveAndMapStructuredErrors(
         selectedRows.map(line => ({
@@ -20,7 +27,7 @@ export const useZeroStocktakeLines = (
           countedNumberOfPacks: 0,
           isUpdated: true,
           countThisLine: true,
-          reasonOption,
+          reasonOption: line.item.isVaccine ? vaccineReason : nonVaccineReason,
         }))
       );
 
@@ -35,9 +42,8 @@ export const useZeroStocktakeLines = (
     }
   };
 
-  const allSelectedItemsAreVaccines = selectedRows.every(
-    row => row.item.isVaccine
-  );
+  const hasVaccineItems = selectedRows.some(row => row.item.isVaccine);
+  const hasNonVaccineItems = selectedRows.some(row => !row.item.isVaccine);
 
-  return { onZeroQuantities, allSelectedItemsAreVaccines };
+  return { onZeroQuantities, hasVaccineItems, hasNonVaccineItems };
 };

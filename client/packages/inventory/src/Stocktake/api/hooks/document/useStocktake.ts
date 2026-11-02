@@ -21,6 +21,6 @@ export const useStocktake = (): UseQueryResult<StocktakeFragment> => {
     queryKey: api.keys.detail(id),
     queryFn: () => api.get.byId(id),
     refetchOnMount: false,
-    gcTime: 0
+    gcTime: 0,
   });
 };

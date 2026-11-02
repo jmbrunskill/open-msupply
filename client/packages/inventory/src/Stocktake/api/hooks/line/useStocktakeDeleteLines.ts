@@ -12,7 +12,7 @@ export const useStocktakeDeleteLines = () => {
 
     onSuccess: () =>
       queryClient.invalidateQueries({
-        queryKey: api.keys.detail(stocktakeId)
-      })
+        queryKey: api.keys.detail(stocktakeId),
+      }),
   });
 };
