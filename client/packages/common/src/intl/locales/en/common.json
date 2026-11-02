@@ -2608,6 +2608,7 @@
   "placeholder.enter-facility-name": "Enter facility name",
   "placeholder.filter-by-status": "Filter by status",
   "placeholder.filter-by-store-name": "Filter by store name",
+  "placeholder.filter-by-store-name-or-code": "Filter by store name or code",
   "placeholder.filter-items": "Filter items",
   "placeholder.filter-translations": "Filter translations",
   "placeholder.item-directions": "Item default directions",
