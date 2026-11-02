@@ -160,8 +160,9 @@ mod test {
         service_provider::ServiceProvider,
     };
     use repository::{
-        InvoiceLineRow, InvoiceLineRowRepository, InvoiceRow, InvoiceRowRepository, InvoiceStatus,
-        InvoiceType, NameRow, NameStoreJoinRow, ReasonOptionRow, ReasonOptionType,
+        InvoiceLineRow, InvoiceLineRowRepository, InvoiceLineType, InvoiceRow,
+        InvoiceRowRepository, InvoiceStatus, InvoiceType, NameRow, NameStoreJoinRow,
+        ReasonOptionRow, ReasonOptionType,
         mock::{
             MockData, MockDataInserts, currency_a, mock_customer_return_a,
             mock_customer_return_a_invoice_line_a, mock_item_a, mock_item_b, mock_name_customer_a,
@@ -172,6 +173,7 @@ mod test {
     };
 
     use super::CustomerReturnLineInput;
+    use super::validate::find_items_returned_more_than_issued;
 
     #[actix_rt::test]
     async fn test_insert_customer_return_errors() {
@@ -362,6 +364,89 @@ mod test {
                 error: UpdateLineReturnReasonError::ReasonDoesNotExist,
             }),
         );
+    }
+
+    #[actix_rt::test]
+    async fn test_insert_customer_return_more_than_issued_is_allowed() {
+        let outbound = InvoiceRow {
+            id: "issued_outbound_shipment".to_string(),
+            currency_id: Some(currency_a().id),
+            r#type: InvoiceType::OutboundShipment,
+            status: InvoiceStatus::Verified,
+            store_id: mock_store_a().id,
+            name_id: mock_name_customer_a().id,
+            ..Default::default()
+        };
+        let outbound_line = InvoiceLineRow {
+            id: "issued_outbound_shipment_line".to_string(),
+            invoice_id: outbound.id.clone(),
+            item_id: mock_item_a().id,
+            item_name: mock_item_a().name,
+            item_code: mock_item_a().code,
+            r#type: InvoiceLineType::StockOut,
+            pack_size: 1.0,
+            number_of_packs: 5.0,
+            ..Default::default()
+        };
+
+        let (_, _, connection_manager, _) = setup_all_with_data(
+            "test_insert_customer_return_more_than_issued_is_allowed",
+            MockDataInserts::all(),
+            MockData {
+                invoices: vec![outbound.clone()],
+                invoice_lines: vec![outbound_line],
+                ..Default::default()
+            },
+        )
+        .await;
+
+        let service_provider = ServiceProvider::new(connection_manager);
+        let context = service_provider
+            .context(mock_store_a().id, mock_user_account_a().id)
+            .unwrap();
+
+        let return_input = |id: &str, number_of_packs: f64| InsertCustomerReturn {
+            id: id.to_string(),
+            other_party_id: mock_name_customer_a().id,
+            outbound_shipment_id: Some(outbound.id.clone()),
+            customer_return_lines: vec![CustomerReturnLineInput {
+                id: format!("{id}_line"),
+                number_of_packs,
+                item_id: mock_item_a().id,
+                pack_size: 1.0,
+                ..Default::default()
+            }],
+            ..Default::default()
+        };
+        let insert = |input| {
+            service_provider
+                .invoice_service
+                .insert_customer_return(&context, input)
+        };
+
+        let over_returned = |input: &InsertCustomerReturn| {
+            let connection = service_provider.connection().unwrap();
+            let outbound = InvoiceRowRepository::new(&connection)
+                .find_one_by_id(&outbound.id)
+                .unwrap()
+                .unwrap();
+            find_items_returned_more_than_issued(&connection, &outbound, input).unwrap()
+        };
+
+        // More than issued in one go is flagged, but allowed
+        let too_many = return_input("return_too_many", 6.0);
+        let flagged = over_returned(&too_many);
+        assert_eq!(flagged.len(), 1);
+        assert_eq!(flagged[0].issued_units, 5.0);
+        assert_eq!(flagged[0].returned_units, 6.0);
+        insert(too_many).unwrap();
+
+        // 6 already returned, 1 more is 7 of 5 issued: still allowed
+        let second = return_input("return_second", 1.0);
+        let flagged = over_returned(&second);
+        assert_eq!(flagged.len(), 1);
+        assert_eq!(flagged[0].returned_units, 7.0);
+        insert(second).unwrap();
     }
 
     #[actix_rt::test]
