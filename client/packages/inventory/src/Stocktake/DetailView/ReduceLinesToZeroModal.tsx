@@ -33,21 +33,61 @@ export const ReduceLinesToZeroConfirmationModal = ({
   const t = useTranslation();
   const { store } = useAuthContext();
 
-  const [reason, setReason] = useState<ReasonOptionRowFragment | null>(null);
+  const [vaccineReason, setVaccineReason] =
+    useState<ReasonOptionRowFragment | null>(null);
+  const [nonVaccineReason, setNonVaccineReason] =
+    useState<ReasonOptionRowFragment | null>(null);
 
-  const { onZeroQuantities, allSelectedItemsAreVaccines } =
+  const { onZeroQuantities, hasVaccineItems, hasNonVaccineItems } =
     useStocktakeOld.line.zeroQuantities(selectedRows);
 
   const { data: reasonOptions } = useReasonOptions();
-  const vaccineReasons = getReasonOptionTypes({
+  const isDispensary = store?.storeMode === StoreModeNodeType.Dispensary;
+  const vaccineReasonTypes = getReasonOptionTypes({
     isInventoryReduction: true,
-    isVaccine: allSelectedItemsAreVaccines,
-    isDispensary: store?.storeMode === StoreModeNodeType.Dispensary,
+    isVaccine: true,
+    isDispensary,
   });
-  const reasonIsRequired = reasonOptions?.nodes.some(
-    reasonOption =>
-      vaccineReasons.includes(reasonOption.type) ||
-      reasonOption.type === ReasonOptionNodeType.NegativeInventoryAdjustment
+  const nonVaccineReasonTypes = getReasonOptionTypes({
+    isInventoryReduction: true,
+    isVaccine: false,
+    isDispensary,
+  });
+  const reasonIsRequired = (types: ReasonOptionNodeType[]) =>
+    !!reasonOptions?.nodes.some(
+      reasonOption =>
+        types.includes(reasonOption.type) ||
+        reasonOption.type === ReasonOptionNodeType.NegativeInventoryAdjustment
+    );
+  const vaccineReasonRequired =
+    hasVaccineItems && reasonIsRequired(vaccineReasonTypes);
+  const nonVaccineReasonRequired =
+    hasNonVaccineItems && reasonIsRequired(nonVaccineReasonTypes);
+
+  const reasonInput = (
+    label: string,
+    types: ReasonOptionNodeType[],
+    value: ReasonOptionRowFragment | null,
+    onChange: (reason: ReasonOptionRowFragment | null) => void
+  ) => (
+    <InputWithLabelRow
+      label={label}
+      labelWidth="200px"
+      Input={
+        <ReasonOptionsSearchInput
+          type={types}
+          fallbackType={ReasonOptionNodeType.NegativeInventoryAdjustment}
+          value={value}
+          onChange={onChange}
+          width={250}
+        />
+      }
+      sx={{
+        '.MuiFormControl-root > .MuiInput-root, > input': {
+          width: '250px',
+        },
+      }}
+    />
   );
 
   return (
@@ -63,9 +103,12 @@ export const ReduceLinesToZeroConfirmationModal = ({
           <Grid>
             <DialogButton
               variant="ok"
-              disabled={reasonIsRequired && !reason}
+              disabled={
+                (vaccineReasonRequired && !vaccineReason) ||
+                (nonVaccineReasonRequired && !nonVaccineReason)
+              }
               onClick={async () => {
-                await onZeroQuantities(reason);
+                await onZeroQuantities({ vaccineReason, nonVaccineReason });
                 clearSelected();
                 onCancel();
               }}
@@ -74,26 +117,24 @@ export const ReduceLinesToZeroConfirmationModal = ({
         </>
       }
     >
-      {reasonIsRequired && (
-        <InputWithLabelRow
-          label={t('label.reason')}
-          labelWidth="100px"
-          Input={
-            <ReasonOptionsSearchInput
-              type={vaccineReasons}
-              fallbackType={ReasonOptionNodeType.NegativeInventoryAdjustment}
-              value={reason}
-              onChange={reason => setReason(reason)}
-              width={250}
-            />
-          }
-          sx={{
-            '.MuiFormControl-root > .MuiInput-root, > input': {
-              width: '250px',
-            },
-          }}
-        />
-      )}
+      {vaccineReasonRequired &&
+        reasonInput(
+          hasNonVaccineItems
+            ? t('label.reason-vaccine-items')
+            : t('label.reason'),
+          vaccineReasonTypes,
+          vaccineReason,
+          setVaccineReason
+        )}
+      {nonVaccineReasonRequired &&
+        reasonInput(
+          hasVaccineItems
+            ? t('label.reason-non-vaccine-items')
+            : t('label.reason'),
+          nonVaccineReasonTypes,
+          nonVaccineReason,
+          setNonVaccineReason
+        )}
     </ConfirmationModalLayout>
   );
 };

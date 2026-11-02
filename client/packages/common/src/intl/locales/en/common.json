@@ -1617,6 +1617,8 @@
   "label.reason": "Reason",
   "label.reason-adjustment": "Adjustment reason",
   "label.reason-for-contacting": "Reason for contacting us",
+  "label.reason-non-vaccine-items": "Reason (non-vaccine items)",
+  "label.reason-vaccine-items": "Reason (vaccine items)",
   "label.received": "Received",
   "label.received-at-port": "Received at port",
   "label.received-date": "Received date",
