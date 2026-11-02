@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   MRT_ColumnSizingState,
   MRT_RowData,
@@ -17,6 +17,12 @@ export const useColumnSizing = (tableId: string) => {
       globalDefaults?.columnSizing ??
       initial
   );
+
+  // Global default may arrive after mount (preferences load async)
+  useEffect(() => {
+    if (!getSavedState(tableId)?.columnSizing)
+      setState(globalDefaults?.columnSizing ?? initial);
+  }, [globalDefaults?.columnSizing]);
 
   const debouncedUpdateSavedState = useDebounceCallback(
     (newState: MRT_ColumnSizingState) => {
