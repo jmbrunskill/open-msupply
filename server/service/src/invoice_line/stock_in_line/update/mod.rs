@@ -420,6 +420,22 @@ mod test {
             Err(ServiceError::BatchIsReserved)
         );
 
+        // Campaign-only change on a reserved line is allowed (#11872)
+        assert!(
+            update_stock_in_line(
+                &context,
+                UpdateStockInLine {
+                    id: mock_customer_return_a_invoice_line_b().id,
+                    campaign_id: Some(NullableUpdate {
+                        value: Some(repository::mock::mock_campaign_a().id),
+                    }),
+                    ..Default::default()
+                },
+                None
+            )
+            .is_ok()
+        );
+
         // ProgramDoesNotExist
         assert_eq!(
             update_stock_in_line(
