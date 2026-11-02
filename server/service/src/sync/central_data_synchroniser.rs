@@ -25,6 +25,36 @@ pub(crate) enum CentralPullError {
     SyncLoggerError(#[from] SyncLoggerError),
     #[error("Central server site id not configured (SettingsSyncCentralServerSiteId)")]
     CentralServerSiteIdNotSet,
+    #[error(
+        "Central returned records but the cursor did not advance past {0} ({1} times in a row), \
+         aborting pull to avoid an infinite loop"
+    )]
+    NonProgressingPull(u64, u32),
+}
+
+// Safety net: abort if non-empty batches fail to advance the cursor this many times in a row.
+const MAX_NON_ADVANCING_PULLS: u32 = 3;
+
+#[derive(Default)]
+struct NonAdvancingPulls(u32);
+
+impl NonAdvancingPulls {
+    fn record(
+        &mut self,
+        start_cursor: u64,
+        batch_length: usize,
+        last_cursor_in_batch: u64,
+    ) -> Result<(), CentralPullError> {
+        if batch_length > 0 && last_cursor_in_batch <= start_cursor {
+            self.0 += 1;
+            if self.0 >= MAX_NON_ADVANCING_PULLS {
+                return Err(CentralPullError::NonProgressingPull(start_cursor, self.0));
+            }
+        } else if batch_length > 0 {
+            self.0 = 0;
+        }
+        Ok(())
+    }
 }
 
 pub(crate) struct CentralDataSynchroniser {
@@ -38,8 +68,6 @@ impl CentralDataSynchroniser {
         batch_size: u32,
         logger: &mut SyncLogger<'a>,
     ) -> Result<(), CentralPullError> {
-        // TODO protection from infinite loop
-
         let cursor_controller = CursorController::new(KeyType::CentralSyncPullCursor);
 
         let msupply_central_server_id = KeyValueStoreRepository::new(connection)
@@ -52,6 +80,7 @@ impl CentralDataSynchroniser {
             msupply_central_server_id
         );
 
+        let mut non_advancing_pulls = NonAdvancingPulls::default();
         loop {
             let start_cursor = cursor_controller.get(connection)?;
 
@@ -113,6 +142,8 @@ impl CentralDataSynchroniser {
                 // There is a chance that max_cursor is lower the last cursor in batch
                 max_cursor - cmp::min(max_cursor, last_cursor_in_batch),
             )?;
+
+            non_advancing_pulls.record(start_cursor, batch_length, last_cursor_in_batch)?;
 
             match (batch_length, last_cursor_in_batch < max_cursor) {
                 (0, false) => break,
@@ -302,5 +333,25 @@ mod test {
             result
         );
         assert!(!is_buffered(&connection, "record_from_retry"));
+    }
+
+    #[test]
+    fn test_cursor_progress_tracker_aborts_on_repeats() {
+        let mut tracker = NonAdvancingPulls::default();
+        // Advancing batches never trip it.
+        for start in 0..10 {
+            assert!(tracker.record(start, 1, start + 1).is_ok());
+        }
+        // Empty batches are ignored.
+        assert!(tracker.record(5, 0, 5).is_ok());
+        // Non-empty batches that do not move the cursor trip it after the limit.
+        let mut result = Ok(());
+        for _ in 0..MAX_NON_ADVANCING_PULLS {
+            result = tracker.record(7, 1, 7);
+        }
+        assert!(matches!(
+            result,
+            Err(CentralPullError::NonProgressingPull(7, _))
+        ));
     }
 }

@@ -22,6 +22,9 @@ use repository::{
 
 use thiserror::Error;
 
+// Safety net: abort a pull if central returns the exact same batch of records this many times in a
+// row, even though we acknowledged them each time.
+const MAX_REPEATED_PULL_BATCHES: u32 = 3;
 const INITIALISATION_POLL_PERIOD_SECONDS: u64 = 15;
 // Stall timeout, not a run-length cap: fail only after this long with no forward progress (no live
 // worker and the queue not growing). A large initial sync can run for hours as long as it progresses.
@@ -47,6 +50,11 @@ pub(crate) enum RemotePullError {
     SyncLoggerError(#[from] SyncLoggerError),
     #[error("Central server site id not configured (SettingsSyncCentralServerSiteId)")]
     CentralServerSiteIdNotSet,
+    #[error(
+        "Central keeps returning the same queued records after they were acknowledged \
+         ({0} times in a row), aborting pull to avoid an infinite loop"
+    )]
+    NonProgressingPull(u32),
 }
 
 #[derive(Error, Debug)]
@@ -251,6 +259,8 @@ impl RemoteDataSynchroniser {
         );
 
         let mut pulled: u64 = 0;
+        let mut previous_sync_ids: Vec<String> = Vec::new();
+        let mut repeated_batches: u32 = 0;
         loop {
             // Retry while central is busy with another sync session for this site
             // (legacy central gates sync per-site); wait for idle then re-request.
@@ -284,6 +294,15 @@ impl RemoteDataSynchroniser {
             // at this point it's number of records waiting to be pulled including records in this pull batch
 
             let sync_ids = sync_batch.extract_sync_ids();
+            if !sync_ids.is_empty() && sync_ids == previous_sync_ids {
+                repeated_batches += 1;
+                if repeated_batches >= MAX_REPEATED_PULL_BATCHES {
+                    return Err(RemotePullError::NonProgressingPull(repeated_batches));
+                }
+            } else {
+                repeated_batches = 0;
+            }
+            previous_sync_ids = sync_ids.clone();
             let RemoteSyncBatchV5 {
                 queue_length: remaining,
                 data,
@@ -732,5 +751,49 @@ mod test {
             buffered.is_some(),
             "Batch from the retried request was not saved"
         );
+    }
+
+    /// Pull remote: central that keeps serving the same records after acknowledgement must not
+    /// loop forever.
+    #[actix_rt::test]
+    async fn test_pull_aborts_when_central_repeats_records() {
+        use crate::sync::{
+            api::test_helpers::{ScriptedResponse, ScriptedServer, set_central_server_site_id},
+            sync_status::logger::SyncLogger,
+        };
+        use repository::{mock::MockDataInserts, test_db};
+
+        let (_, connection, _, _) = test_db::setup_all(
+            "remote_test_pull_aborts_when_central_repeats_records",
+            MockDataInserts::none(),
+        )
+        .await;
+
+        let batch = r#"{
+            "queueLength": 1,
+            "data": [
+                {
+                    "syncOutId": "ID1",
+                    "tableName": "test_table_1",
+                    "recordId": "repeated_record",
+                    "action": "delete"
+                }
+            ]
+        }"#;
+        let mut responses = Vec::new();
+        // First batch + MAX_REPEATED_PULL_BATCHES repeats, each followed by an acknowledgement.
+        for _ in 0..=MAX_REPEATED_PULL_BATCHES {
+            responses.push(ScriptedResponse::Complete(batch.to_string()));
+            responses.push(ScriptedResponse::Complete(String::new()));
+        }
+        let server = ScriptedServer::start(responses);
+
+        set_central_server_site_id(&connection);
+        let mut logger = SyncLogger::start(&connection).unwrap();
+        let result = synchroniser(server.url())
+            .pull(&connection, 100, &mut logger)
+            .await;
+
+        assert_matches!(result, Err(RemotePullError::NonProgressingPull(_)));
     }
 }
