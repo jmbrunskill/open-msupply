@@ -39,7 +39,7 @@ const UIComponent = (props: ControlProps) => {
     props.uischema.options
   );
 
-  const { handleChange, label, path } = props;
+  const { handleChange, label, path, required, errors } = props;
   const { core } = useJsonForms();
 
   const { data, isLoading } = useProgramList(
@@ -97,6 +97,8 @@ const UIComponent = (props: ControlProps) => {
       Input={
         <Autocomplete
           fullWidth
+          required={required}
+          error={!!errors}
           loading={isLoading}
           options={programOptions}
           optionKey="name"
