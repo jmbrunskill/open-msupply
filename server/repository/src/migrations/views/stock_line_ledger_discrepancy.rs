@@ -34,23 +34,18 @@ impl ViewMigrationFragment for ViewMigration {
 		GROUP BY
 			1
 	),
-	max_ledger_datetime AS (
-		SELECT
-			stock_line_id,
-			MAX(datetime) AS dt
-		FROM
-			stock_movement
-		GROUP BY
-			1
-	),
+	-- Balance after the last movement. Summing (rather than joining on the latest datetime)
+	-- keeps this one row per stock line when several movements share the latest datetime
 	running_balance AS (
 		SELECT
-			stock_line_ledger.stock_line_id,
-			running_balance AS q
+			stock_line_id,
+			SUM(quantity) AS q
 		FROM
-			stock_line_ledger
-			JOIN max_ledger_datetime ON stock_line_ledger.stock_line_id = max_ledger_datetime.stock_line_id
-			AND stock_line_ledger.datetime = max_ledger_datetime.dt
+			stock_movement
+		WHERE
+			stock_line_id IS NOT NULL
+		GROUP BY
+			1
 	),
 	current_balance AS (
 		SELECT
