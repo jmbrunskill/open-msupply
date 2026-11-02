@@ -10,6 +10,30 @@ pub use self::postgres::*;
 
 mod constants;
 
+/// Postgres silently truncates identifiers to 63 bytes. Since v17 two test databases whose names
+/// only differ after that point then collide and tests fail in confusing ways. Longer names are
+/// shortened to a prefix plus a stable hash of the full name, so they stay unique.
+#[cfg_attr(not(feature = "postgres"), allow(dead_code))]
+pub(crate) fn postgres_safe_db_name(db_name: &str) -> String {
+    const MAX_LEN: usize = 63;
+    const HASH_LEN: usize = 16; // hex digits of a 64 bit hash
+
+    if db_name.len() <= MAX_LEN {
+        return db_name.to_string();
+    }
+
+    // FNV-1a, so the hash doesn't change between runs or toolchains
+    let hash = db_name.bytes().fold(0xcbf29ce484222325u64, |hash, byte| {
+        (hash ^ byte as u64).wrapping_mul(0x100000001b3)
+    });
+
+    let mut prefix_len = MAX_LEN - HASH_LEN - 1;
+    while !db_name.is_char_boundary(prefix_len) {
+        prefix_len -= 1;
+    }
+    format!("{}_{hash:016x}", &db_name[..prefix_len])
+}
+
 use crate::{
     StorageConnection, StorageConnectionManager,
     database_settings::DatabaseSettings,
@@ -140,5 +164,24 @@ mod tests {
         .await;
 
         assert!(result.db_settings.database_name.contains(db_name));
+    }
+
+    #[test]
+    fn test_postgres_safe_db_name() {
+        // Short names are untouched
+        assert_eq!(postgres_safe_db_name("short_name"), "short_name");
+        let exactly_63 = "a".repeat(63);
+        assert_eq!(postgres_safe_db_name(&exactly_63), exactly_63);
+
+        // Long names are shortened to the limit, deterministically
+        let long = "test_name_merge_message_translation_removes_duplicate_name_store_joins";
+        let shortened = postgres_safe_db_name(long);
+        assert_eq!(shortened.len(), 63);
+        assert_eq!(shortened, postgres_safe_db_name(long));
+
+        // Names sharing the first 63 characters stay distinct
+        let a = format!("{exactly_63}_first");
+        let b = format!("{exactly_63}_second");
+        assert_ne!(postgres_safe_db_name(&a), postgres_safe_db_name(&b));
     }
 }
