@@ -113,7 +113,12 @@ export const PluginUploadModal = ({
             justifyContent: 'center',
           }}
         >
-          <UploadFile onUpload={onUpload} files={files} />
+          <UploadFile
+            onUpload={onUpload}
+            files={files}
+            accept={{ 'application/json': ['.json'] }}
+            onRejected={() => error(t('error.plugin-invalid-file'))()}
+          />
         </Box>
         <Box sx={{ display: 'flex', width: '300px' }}>
           <FileList

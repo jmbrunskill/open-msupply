@@ -282,7 +282,15 @@ export const AssetItemUploadTab: FC<ImportPanel & AssetItemUploadTabProps> = ({
         </Grid>
       ) : null}
       <Stack spacing={2}>
-        <UploadFile onUpload={csvImport} testId="import-file-input" />
+        <UploadFile
+          onUpload={csvImport}
+          accept={{
+            'text/csv': ['.csv'],
+            'application/vnd.ms-excel': ['.csv'],
+          }}
+          onRejected={() => setErrorMessage(t('messages.invalid-file'))}
+          testId="import-file-input"
+        />
         <Typography textAlign="center">
           {t('messages.template-download-text')}
           <Link

@@ -189,7 +189,14 @@ export const UploadTab: FC<ImportPanel & UploadTabProps> = ({
         </Grid>
       ) : null}
       <Stack spacing={2}>
-        <UploadFile onUpload={csvImport} />
+        <UploadFile
+          onUpload={csvImport}
+          accept={{
+            'text/csv': ['.csv'],
+            'application/vnd.ms-excel': ['.csv'],
+          }}
+          onRejected={() => setErrorMessage(t('messages.invalid-file'))}
+        />
         <Typography textAlign="center">
           <Link onClick={csvExample} to={''}>
             {t('messages.properties-download-example')}

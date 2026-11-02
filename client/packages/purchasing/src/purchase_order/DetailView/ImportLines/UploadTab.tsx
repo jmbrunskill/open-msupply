@@ -240,7 +240,14 @@ export const UploadTab = ({
         </Grid>
       ) : null}
       <Stack spacing={2} alignItems={'center'}>
-        <UploadFile onUpload={csvImport} />
+        <UploadFile
+          onUpload={csvImport}
+          accept={{
+            'text/csv': ['.csv'],
+            'application/vnd.ms-excel': ['.csv'],
+          }}
+          onRejected={() => setErrorMessage(t('messages.invalid-file'))}
+        />
         <Typography>
           {t('messages.template-download-text')}
           <Link onClick={csvExample} to={''}>
