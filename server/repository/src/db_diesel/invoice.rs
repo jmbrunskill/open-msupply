@@ -55,6 +55,7 @@ pub struct InvoiceFilter {
     pub colour: Option<EqualFilter<String>>,
     pub requisition_id: Option<EqualFilter<String>>,
     pub linked_invoice_id: Option<EqualFilter<String>>,
+    pub original_shipment_id: Option<EqualFilter<String>>,
     pub stock_line_id: Option<String>,
     pub is_program_invoice: Option<bool>,
     pub is_cancellation: Option<bool>,
@@ -263,6 +264,7 @@ fn create_filtered_query(filter: Option<InvoiceFilter>) -> BoxedInvoiceQuery {
             colour,
             requisition_id,
             linked_invoice_id,
+            original_shipment_id,
             stock_line_id,
             is_program_invoice,
             is_cancellation,
@@ -348,6 +350,7 @@ fn create_filtered_query(filter: Option<InvoiceFilter>) -> BoxedInvoiceQuery {
 
         apply_string_filter!(query, comment, invoice::comment);
         apply_equal_filter!(query, linked_invoice_id, invoice::linked_invoice_id);
+        apply_equal_filter!(query, original_shipment_id, invoice::original_shipment_id);
         apply_equal_filter!(query, user_id, invoice::user_id);
         apply_equal_filter!(query, transport_reference, invoice::transport_reference);
         apply_equal_filter!(query, colour, invoice::colour);
@@ -545,6 +548,11 @@ impl InvoiceFilter {
 
     pub fn linked_invoice_id(mut self, filter: EqualFilter<String>) -> Self {
         self.linked_invoice_id = Some(filter);
+        self
+    }
+
+    pub fn original_shipment_id(mut self, filter: EqualFilter<String>) -> Self {
+        self.original_shipment_id = Some(filter);
         self
     }
 

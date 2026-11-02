@@ -39,6 +39,10 @@ pub enum InsertCustomerReturnError {
     OutboundShipmentDoesNotBelongToCurrentStore,
     OriginalInvoiceNotAnOutboundShipment,
     CannotReturnOutboundShipment,
+    // Returning more of an item than was issued on the outbound shipment (across all returns)
+    ReturnExceedsIssuedQuantity {
+        item_id: String,
+    },
     // Name validation
     OtherPartyNotACustomer,
     OtherPartyNotVisible,
@@ -160,8 +164,9 @@ mod test {
         service_provider::ServiceProvider,
     };
     use repository::{
-        InvoiceLineRow, InvoiceLineRowRepository, InvoiceRow, InvoiceRowRepository, InvoiceStatus,
-        InvoiceType, NameRow, NameStoreJoinRow, ReasonOptionRow, ReasonOptionType,
+        InvoiceLineRow, InvoiceLineRowRepository, InvoiceLineType, InvoiceRow,
+        InvoiceRowRepository, InvoiceStatus, InvoiceType, NameRow, NameStoreJoinRow,
+        ReasonOptionRow, ReasonOptionType,
         mock::{
             MockData, MockDataInserts, currency_a, mock_customer_return_a,
             mock_customer_return_a_invoice_line_a, mock_item_a, mock_item_b, mock_name_customer_a,
@@ -362,6 +367,87 @@ mod test {
                 error: UpdateLineReturnReasonError::ReasonDoesNotExist,
             }),
         );
+    }
+
+    #[actix_rt::test]
+    async fn test_insert_customer_return_cannot_return_more_than_issued() {
+        let outbound = InvoiceRow {
+            id: "issued_outbound_shipment".to_string(),
+            currency_id: Some(currency_a().id),
+            r#type: InvoiceType::OutboundShipment,
+            status: InvoiceStatus::Verified,
+            store_id: mock_store_a().id,
+            name_id: mock_name_customer_a().id,
+            ..Default::default()
+        };
+        let outbound_line = InvoiceLineRow {
+            id: "issued_outbound_shipment_line".to_string(),
+            invoice_id: outbound.id.clone(),
+            item_id: mock_item_a().id,
+            item_name: mock_item_a().name,
+            item_code: mock_item_a().code,
+            r#type: InvoiceLineType::StockOut,
+            pack_size: 1.0,
+            number_of_packs: 5.0,
+            ..Default::default()
+        };
+
+        let (_, _, connection_manager, _) = setup_all_with_data(
+            "test_insert_customer_return_cannot_return_more_than_issued",
+            MockDataInserts::all(),
+            MockData {
+                invoices: vec![outbound.clone()],
+                invoice_lines: vec![outbound_line],
+                ..Default::default()
+            },
+        )
+        .await;
+
+        let service_provider = ServiceProvider::new(connection_manager);
+        let context = service_provider
+            .context(mock_store_a().id, mock_user_account_a().id)
+            .unwrap();
+
+        let return_input = |id: &str, number_of_packs: f64| InsertCustomerReturn {
+            id: id.to_string(),
+            other_party_id: mock_name_customer_a().id,
+            outbound_shipment_id: Some(outbound.id.clone()),
+            customer_return_lines: vec![CustomerReturnLineInput {
+                id: format!("{id}_line"),
+                number_of_packs,
+                item_id: mock_item_a().id,
+                pack_size: 1.0,
+                ..Default::default()
+            }],
+            ..Default::default()
+        };
+        let insert = |input| {
+            service_provider
+                .invoice_service
+                .insert_customer_return(&context, input)
+        };
+
+        // More than issued in one go
+        assert_eq!(
+            insert(return_input("return_too_many", 6.0)).unwrap_err(),
+            ServiceError::ReturnExceedsIssuedQuantity {
+                item_id: mock_item_a().id
+            }
+        );
+
+        // 3 of the 5 issued
+        insert(return_input("return_first", 3.0)).unwrap();
+
+        // 3 more would be 6 of 5 issued
+        assert_eq!(
+            insert(return_input("return_second", 3.0)).unwrap_err(),
+            ServiceError::ReturnExceedsIssuedQuantity {
+                item_id: mock_item_a().id
+            }
+        );
+
+        // the remaining 2 is fine
+        insert(return_input("return_second", 2.0)).unwrap();
     }
 
     #[actix_rt::test]
