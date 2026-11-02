@@ -36,12 +36,13 @@ export const useColumnVisibility = <T extends MRT_RowData>(
       initial
   );
 
-  // If initial state changes (due to simplified mobile view turning on/off)
-  // And no custom visibility has been saved
-  // Update the visibility to the new default
+  // If initial state changes (due to simplified mobile view turning on/off),
+  // or the global default arrives after mount (preferences load async), and no
+  // custom visibility has been saved, update the visibility to the new default
   useEffect(() => {
-    if (!getSavedState(tableId)?.columnVisibility) setState(initial);
-  }, [initial]);
+    if (!getSavedState(tableId)?.columnVisibility)
+      setState(globalDefaults?.columnVisibility ?? initial);
+  }, [initial, globalDefaults?.columnVisibility]);
 
   const update = useCallback<
     NonNullable<MRT_TableOptions<MRT_RowData>['onColumnVisibilityChange']>

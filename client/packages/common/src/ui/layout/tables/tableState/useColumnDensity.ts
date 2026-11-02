@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   MRT_DensityState,
   MRT_RowData,
@@ -17,6 +17,12 @@ export const useColumnDensity = (tableId: string) => {
   const [hasSavedState, setHasSavedState] = useState(
     !!getSavedState(tableId)?.density
   );
+
+  // Global default may arrive after mount (preferences load async)
+  useEffect(() => {
+    if (!getSavedState(tableId)?.density)
+      setState(globalDefaults?.density ?? initial);
+  }, [globalDefaults?.density]);
 
   const update = useCallback<
     NonNullable<MRT_TableOptions<MRT_RowData>['onDensityChange']>

@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   MRT_ColumnPinningState,
   MRT_RowData,
@@ -32,6 +32,12 @@ export const useColumnPinning = <T extends MRT_RowData>(
       globalDefaults?.columnPinning ??
       initial
   );
+
+  // Global default may arrive after mount (preferences load async)
+  useEffect(() => {
+    if (!getSavedState(tableId)?.columnPinning)
+      setState(globalDefaults?.columnPinning ?? initial);
+  }, [globalDefaults?.columnPinning]);
 
   const update = useCallback<
     NonNullable<MRT_TableOptions<MRT_RowData>['onColumnPinningChange']>
