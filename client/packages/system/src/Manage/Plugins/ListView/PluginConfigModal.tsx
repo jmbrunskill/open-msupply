@@ -100,7 +100,7 @@ export const PluginConfigModal = ({
       title={t('title.configure-plugin-code', { code: pluginCode })}
       width={modalWidth}
       height={modalHeight}
-      contentProps={{ sx: { overflowY: 'hidden' } }}
+      contentProps={{ sx: { overflowY: 'auto' } }}
       cancelButton={<DialogButton variant="cancel" onClick={onClose} />}
       saveButton={
         <DialogButton
