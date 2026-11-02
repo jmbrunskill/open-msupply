@@ -84,7 +84,20 @@ pub fn validate(
         return Err(NotThisStoreInvoice);
     }
 
-    if !check_batch(line_row, connection)? {
+    // Only changes that alter the stock quantity (or swap the item) are blocked
+    // when the stock line has been partly reserved/issued. Other edits (campaign,
+    // program, location, ...) don't touch the quantity, so they're allowed.
+    let changes_stock_quantity = input
+        .number_of_packs
+        .is_some_and(|number_of_packs| !f64_approx_eq(number_of_packs, line_row.number_of_packs))
+        || input
+            .pack_size
+            .is_some_and(|pack_size| !f64_approx_eq(pack_size, line_row.pack_size))
+        || input
+            .item_id
+            .as_ref()
+            .is_some_and(|item_id| item_id != &line_row.item_id);
+    if changes_stock_quantity && !check_batch(line_row, connection)? {
         return Err(BatchIsReserved);
     }
     if let Some(NullableUpdate {
