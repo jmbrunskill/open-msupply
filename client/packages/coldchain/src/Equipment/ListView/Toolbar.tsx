@@ -142,6 +142,7 @@ export const useToolbar = () => {
       type: 'text',
       name: t('label.store'),
       urlParameter: 'storeCodeOrName',
+      placeholder: t('placeholder.filter-by-store-name-or-code'),
       isDefault: true,
     });
   }
