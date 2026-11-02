@@ -616,7 +616,7 @@ impl SyncTranslation for InvoiceTranslation {
             None => invoice_status,
         };
 
-        let result = InvoiceRow {
+        let mut result = InvoiceRow {
             id: data.ID,
             user_id: data.user_id,
             store_id,
@@ -730,6 +730,22 @@ impl SyncTranslation for InvoiceTranslation {
                     name_is_customer: true,
                     name_is_supplier: false,
                 }));
+            }
+        }
+
+        // In mSupply a prescription cancellation is a separate reversal transaction
+        // (is_cancellation, linked to the original). OMS additionally flags the original
+        // as Cancelled, so apply that here, whichever of the two arrives first.
+        if result.r#type == InvoiceType::Prescription {
+            if result.is_cancellation {
+                if let Some(original) = cancelled_original(connection, &result)? {
+                    operations.push(IntegrationOperation::upsert(original));
+                }
+            } else if let Some(cancelled_datetime) =
+                find_cancellation_datetime(connection, &result)?
+            {
+                result.status = InvoiceStatus::Cancelled;
+                result.cancelled_datetime = result.cancelled_datetime.or(Some(cancelled_datetime));
             }
         }
 
@@ -1195,6 +1211,58 @@ fn invoice_status(
         },
     };
     Some(status)
+}
+
+/// A prescription can only be cancelled once dispensed (Verified)
+fn can_be_cancelled(status: &InvoiceStatus) -> bool {
+    matches!(status, InvoiceStatus::Verified)
+}
+
+fn cancellation_datetime(reversal: &InvoiceRow) -> NaiveDateTime {
+    reversal
+        .verified_datetime
+        .unwrap_or(reversal.created_datetime)
+}
+
+/// Reversal arrived: the already-synced original, marked as cancelled
+fn cancelled_original(
+    connection: &StorageConnection,
+    reversal: &InvoiceRow,
+) -> Result<Option<InvoiceRow>, anyhow::Error> {
+    let Some(original_id) = &reversal.linked_invoice_id else {
+        return Ok(None);
+    };
+    let Some(mut original) = InvoiceRowRepository::new(connection).find_one_by_id(original_id)?
+    else {
+        // Original arrives later, handled when it is translated (find_cancellation_datetime)
+        return Ok(None);
+    };
+    if original.r#type != InvoiceType::Prescription || !can_be_cancelled(&original.status) {
+        return Ok(None);
+    }
+    original.status = InvoiceStatus::Cancelled;
+    original.cancelled_datetime = original
+        .cancelled_datetime
+        .or(Some(cancellation_datetime(reversal)));
+    Ok(Some(original))
+}
+
+/// Original arrived: if its reversal was already synced, when it was cancelled
+fn find_cancellation_datetime(
+    connection: &StorageConnection,
+    original: &InvoiceRow,
+) -> Result<Option<NaiveDateTime>, anyhow::Error> {
+    if original.is_cancellation || !can_be_cancelled(&original.status) {
+        return Ok(None);
+    }
+    let reversal = InvoiceRepository::new(connection)
+        .query_by_filter(
+            InvoiceFilter::new()
+                .linked_invoice_id(EqualFilter::equal_to(original.id.clone()))
+                .is_cancellation(true),
+        )?
+        .pop();
+    Ok(reversal.map(|r| cancellation_datetime(&r.invoice_row)))
 }
 
 fn legacy_invoice_type(_type: &InvoiceType) -> Option<LegacyTransactType> {
@@ -1896,6 +1964,108 @@ mod tests {
             panic!("expected integration operations");
         };
         assert_eq!(operations.len(), 1);
+    }
+
+    /// A prescription cancelled in mSupply arrives as a reversal transaction linked to the
+    /// original. The original must become Cancelled with a cancelled datetime, whichever
+    /// order the two sync in.
+    #[actix_rt::test]
+    async fn test_prescription_cancellation_reversal_cancels_original() {
+        let translator = InvoiceTranslation {};
+        let (_, connection, _, _) = setup_all_with_data(
+            "test_prescription_cancellation_reversal_cancels_original",
+            MockDataInserts::none().names().stores().currencies(),
+            MockData {
+                key_value_store_rows: vec![KeyValueStoreRow {
+                    id: KeyType::SettingsSyncSiteId,
+                    value_int: Some(mock_store_a().site_id),
+                    ..Default::default()
+                }],
+                ..Default::default()
+            },
+        )
+        .await;
+
+        let original_data = || {
+            let mut data = transact_for_patient_data("original_prescription", "dispensary");
+            data["status"] = json!("fn");
+            data
+        };
+        let reversal_data = || {
+            let mut data = transact_for_patient_data("reversal_prescription", "dispensary");
+            data["status"] = json!("fn");
+            data["is_cancellation"] = json!(true);
+            data["linked_transaction_id"] = json!("original_prescription");
+            data["entry_date"] = json!("2021-08-02");
+            data
+        };
+        let translate = |data: serde_json::Value| {
+            let id = data["ID"].as_str().unwrap().to_string();
+            let PullTranslateResult::IntegrationOperations(operations) = translator
+                .try_translate_from_upsert_sync_record(
+                    &connection,
+                    &crate::sync::translations::FkChecker::new(),
+                    &transact_sync_buffer_row(&id, data),
+                )
+                .unwrap()
+            else {
+                panic!("expected integration operations");
+            };
+            operations
+        };
+        let integrate = |operations: Vec<IntegrationOperation>| {
+            for operation in operations {
+                let IntegrationOperation::Upsert(upsert) = operation else {
+                    panic!("expected upsert");
+                };
+                upsert
+                    .upsert_sync(
+                        &connection,
+                        repository::ChangelogSyncType::SyncTypeV5V6 {
+                            source_site_id: None,
+                        },
+                    )
+                    .unwrap();
+            }
+        };
+
+        // Order 1: original, then reversal
+        let operations = translate(original_data());
+        assert_eq!(operations.len(), 1);
+        assert!(format!("{:?}", operations[0]).contains("status: Verified"));
+        integrate(operations);
+
+        let operations = translate(reversal_data());
+        assert_eq!(operations.len(), 2, "reversal + updated original");
+        integrate(operations);
+        let original = InvoiceRowRepository::new(&connection)
+            .find_one_by_id("original_prescription")
+            .unwrap()
+            .unwrap();
+        assert_eq!(original.status, InvoiceStatus::Cancelled);
+        assert!(original.cancelled_datetime.is_some());
+        let reversal = InvoiceRowRepository::new(&connection)
+            .find_one_by_id("reversal_prescription")
+            .unwrap()
+            .unwrap();
+        assert!(reversal.is_cancellation);
+        assert_eq!(reversal.status, InvoiceStatus::Verified);
+
+        // Order 2: reversal first (original not synced yet), then original
+        let mut reversal_first = reversal_data();
+        reversal_first["ID"] = json!("reversal_2");
+        reversal_first["linked_transaction_id"] = json!("original_2");
+        let operations = translate(reversal_first);
+        assert_eq!(operations.len(), 1, "original not there yet");
+        integrate(operations);
+
+        let mut original_second = original_data();
+        original_second["ID"] = json!("original_2");
+        let operations = translate(original_second);
+        assert_eq!(operations.len(), 1);
+        let debug = format!("{:?}", operations[0]);
+        assert!(debug.contains("status: Cancelled"), "{debug}");
+        assert!(!debug.contains("cancelled_datetime: None"), "{debug}");
     }
 
     /// Joins are only synthesized on the central server
