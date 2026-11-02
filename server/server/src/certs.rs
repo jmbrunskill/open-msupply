@@ -51,14 +51,6 @@ pub fn load_certs_rustls(cert_files: CertFiles) -> Result<ServerConfig, anyhow::
     let private_cert_file = std::fs::File::open(cert_files.clone().private_cert_file)?;
     let mut private_reader = BufReader::new(private_cert_file);
 
-    let result = rustls::crypto::ring::default_provider().install_default();
-    if let Err(e) = result {
-        panic!(
-            "Unable to install rustls::crypto::ring default provider: {:#?}",
-            e
-        );
-    }
-
     let private_key = rustls_pemfile::read_one(&mut private_reader)?
         .map(|key| match key {
             rustls_pemfile::Item::Pkcs1Key(key) => rustls::pki_types::PrivateKeyDer::Pkcs1(key),
@@ -70,9 +62,15 @@ pub fn load_certs_rustls(cert_files: CertFiles) -> Result<ServerConfig, anyhow::
         })
         .ok_or_else(|| anyhow::Error::msg("No private key found"))?;
 
-    let config = ServerConfig::builder()
-        .with_no_client_auth()
-        .with_single_cert(certs, private_key)?;
+    // Use the ring provider explicitly rather than installing it as the process default. Another
+    // component (e.g. the SMTP client when mail is configured) may already have installed a
+    // default, which made `install_default` fail and panic.
+    let config = ServerConfig::builder_with_provider(std::sync::Arc::new(
+        rustls::crypto::ring::default_provider(),
+    ))
+    .with_safe_default_protocol_versions()?
+    .with_no_client_auth()
+    .with_single_cert(certs, private_key)?;
     Ok(config)
 }
 
@@ -165,5 +163,24 @@ impl Display for Protocol {
                 Protocol::Https => "https",
             }
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn load_certs_rustls_when_crypto_provider_already_installed() {
+        // Something else (e.g. SMTP/TLS client) has already installed the process default
+        let _ = rustls::crypto::ring::default_provider().install_default();
+
+        let dir = std::env::temp_dir().join(format!("oms_certs_test_{}", std::process::id()));
+        let cert_files = Certificates::generate_certs(&dir).unwrap();
+
+        let result = load_certs_rustls(cert_files);
+        let _ = std::fs::remove_dir_all(&dir);
+
+        assert!(result.is_ok());
     }
 }
