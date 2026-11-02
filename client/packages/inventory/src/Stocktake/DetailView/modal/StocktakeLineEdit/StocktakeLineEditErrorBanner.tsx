@@ -10,9 +10,7 @@ interface StocktakeLineErrorBannerProps {
   draftLines: DraftStocktakeLine[];
 }
 
-export const StocktakeLineEditErrorBanner = ({
-  draftLines,
-}: StocktakeLineErrorBannerProps) => {
+export const StocktakeLineEditErrorBanner = ({ draftLines }: StocktakeLineErrorBannerProps) => {
   const t = useTranslation();
   const { errors } = useStocktakeLineErrorContext();
 

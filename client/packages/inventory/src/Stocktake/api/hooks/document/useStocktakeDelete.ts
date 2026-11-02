@@ -10,8 +10,8 @@ export const useStocktakeDelete = () => {
 
     onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: api.keys.base(),
+        queryKey: api.keys.base()
       });
-    },
+    }
   });
 };

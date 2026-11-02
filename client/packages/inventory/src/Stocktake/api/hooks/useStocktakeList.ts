@@ -69,11 +69,7 @@ const useGet = (queryParams: StocktakesParams) => {
     return { nodes, totalCount };
   };
 
-  const query = useQuery({
-    queryKey,
-    queryFn,
-    placeholderData: keepPreviousData,
-  });
+  const query = useQuery({ queryKey, queryFn, placeholderData: keepPreviousData });
   return query;
 };
 
@@ -108,7 +104,7 @@ const useDelete = () => {
     mutationFn,
     onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: [STOCKTAKE],
+        queryKey: [STOCKTAKE]
       });
     },
   });

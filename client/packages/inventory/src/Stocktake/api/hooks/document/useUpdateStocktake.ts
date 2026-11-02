@@ -8,9 +8,8 @@ export const useUpdateStocktake = () => {
   return useMutation({
     mutationFn: api.update,
 
-    onSuccess: () =>
-      queryClient.invalidateQueries({
-        queryKey: api.keys.base(),
-      }),
+    onSuccess: () => queryClient.invalidateQueries({
+      queryKey: api.keys.base()
+    })
   });
 };

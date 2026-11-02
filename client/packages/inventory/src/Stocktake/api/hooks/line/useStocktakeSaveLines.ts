@@ -22,8 +22,8 @@ export const useSaveStocktakeLines = () => {
 
     onSuccess: () =>
       queryClient.invalidateQueries({
-        queryKey: api.keys.detail(stocktakeId),
-      }),
+        queryKey: api.keys.detail(stocktakeId)
+      })
   });
 
   const saveAndMapStructuredErrors = async (lines: DraftStocktakeLine[]) => {

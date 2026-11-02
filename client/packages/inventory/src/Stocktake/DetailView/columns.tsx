@@ -166,7 +166,9 @@ export const useStocktakeColumns = ({
             cell={cell}
             row={row}
             packSize={
-              row.original.packSize || row.original.item.defaultPackSize || 1
+              row.original.packSize ||
+              row.original.item.defaultPackSize ||
+              1
             }
           />
         ),
