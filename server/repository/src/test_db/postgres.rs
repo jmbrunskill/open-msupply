@@ -23,7 +23,7 @@ pub fn get_test_db_settings(db_name: &str) -> DatabaseSettings {
         password: "password".to_string(),
         port: 5432,
         host: "localhost".to_string(),
-        database_name: db_name.to_string(),
+        database_name: super::postgres_safe_db_name(db_name),
         init_sql: None,
         database_path: None,
         connection_pool_max_connections: None,
