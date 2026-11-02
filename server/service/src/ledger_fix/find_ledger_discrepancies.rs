@@ -91,6 +91,12 @@ mod test {
             ..negative_balance.clone()
         };
 
+        // Latest two movements share the exact same datetime
+        let duplicate_latest_datetime = StockLineRow {
+            id: "duplicate_latest_datetime".to_string(),
+            ..negative_balance.clone()
+        };
+
         let negative_balance_non_active_store = StockLineRow {
             id: "negative_balance_non_active_store".to_string(),
             store_id: mock_store_b().id.clone(),
@@ -104,6 +110,7 @@ mod test {
                 total_not_matched.clone(),
                 correct_with_some_allocated_not_picked.clone(),
                 negative_balance_non_active_store.clone(),
+                duplicate_latest_datetime.clone(),
                 orphan,
             ],
             ..Default::default()
@@ -116,6 +123,10 @@ mod test {
         .join(make_movements(
             correct,
             vec![(2, 6), (3, -2), (5, -3), (25, -1)],
+        ))
+        .join(make_movements(
+            duplicate_latest_datetime,
+            vec![(2, 6), (5, -2), (5, -4)],
         ))
         .join(make_movements(
             total_not_matched,
@@ -168,6 +179,8 @@ mod test {
         assert!(stock_line_ids.contains(&"total_not_matched".to_string()));
         assert!(stock_line_ids.contains(&"orphan".to_string()));
         assert!(!stock_line_ids.contains(&"correct".to_string()));
+        // Same datetime on the last movements must not look like a discrepancy
+        assert!(!stock_line_ids.contains(&"duplicate_latest_datetime".to_string()));
         assert!(!stock_line_ids.contains(&"correct_with_some_allocated_not_picked".to_string()));
         assert!(!stock_line_ids.contains(&"negative_balance_non_active_store".to_string()));
     }
