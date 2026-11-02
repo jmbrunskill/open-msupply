@@ -108,7 +108,16 @@ export const DetailTabs: FC<DetailTabsProps> = ({
 
   const tabList = (
     <Box flex={1}>
-      <ShortTabList value={currentTab} centered onChange={onChange}>
+      {/* `centered` clips the first and last tabs when they overflow a narrow
+          screen, so on mobile scroll the tab list instead */}
+      <ShortTabList
+        value={currentTab}
+        centered={!isExtraSmallScreen}
+        variant={isExtraSmallScreen ? 'scrollable' : 'standard'}
+        scrollButtons={isExtraSmallScreen ? 'auto' : false}
+        allowScrollButtonsMobile
+        onChange={onChange}
+      >
         {tabs.map(({ value }) => (
           <Tab
             key={value}
